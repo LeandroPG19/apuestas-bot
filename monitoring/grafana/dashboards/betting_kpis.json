@@ -1,0 +1,107 @@
+{
+  "id": null,
+  "uid": "apuestas-betting-kpis",
+  "title": "Apuestas — Betting KPIs",
+  "tags": ["apuestas", "betting", "kpi"],
+  "timezone": "browser",
+  "schemaVersion": 38,
+  "version": 1,
+  "refresh": "1m",
+  "time": {"from": "now-30d", "to": "now"},
+  "templating": {
+    "list": [
+      {
+        "name": "sport",
+        "type": "query",
+        "datasource": {"type": "postgres", "uid": "postgres-apuestas"},
+        "rawQuery": "SELECT DISTINCT m.sport_code AS __text, m.sport_code AS __value FROM bets b JOIN matches m ON m.id = b.match_id",
+        "refresh": 1,
+        "includeAll": true,
+        "multi": true
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "ROI 30d (por deporte)",
+      "type": "stat",
+      "datasource": {"type": "postgres"},
+      "gridPos": {"h": 6, "w": 6, "x": 0, "y": 0},
+      "targets": [
+        {
+          "rawSql": "SELECT SUM(b.pnl_units) / NULLIF(SUM(b.stake_units), 0) AS roi FROM bets b JOIN matches m ON m.id = b.match_id WHERE b.status IN ('won','lost','halfwon','halflost') AND b.settled_at > NOW() - INTERVAL '30 days' AND ($sport = 'all' OR m.sport_code IN ($sport))",
+          "format": "table"
+        }
+      ],
+      "options": {"colorMode": "value", "reduceOptions": {"calcs": ["lastNotNull"]}},
+      "fieldConfig": {"defaults": {"unit": "percentunit", "thresholds": {"steps": [{"color": "red", "value": null}, {"color": "green", "value": 0.0}]}}}
+    },
+    {
+      "id": 2,
+      "title": "CLV 7d/30d",
+      "type": "stat",
+      "datasource": {"type": "postgres"},
+      "gridPos": {"h": 6, "w": 6, "x": 6, "y": 0},
+      "targets": [
+        {
+          "rawSql": "SELECT AVG(clv) AS clv_avg FROM bets WHERE clv IS NOT NULL AND settled_at > NOW() - INTERVAL '30 days'",
+          "format": "table"
+        }
+      ],
+      "fieldConfig": {"defaults": {"unit": "percentunit"}}
+    },
+    {
+      "id": 3,
+      "title": "Hit rate por bucket EV",
+      "type": "table",
+      "datasource": {"type": "postgres"},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 6},
+      "targets": [
+        {
+          "rawSql": "SELECT CASE WHEN p.ev < 0.04 THEN '3-4%' WHEN p.ev < 0.05 THEN '4-5%' WHEN p.ev < 0.07 THEN '5-7%' WHEN p.ev < 0.10 THEN '7-10%' ELSE '10%+' END AS ev_bucket, COUNT(*) AS bets, AVG(CASE WHEN b.status = 'won' THEN 1.0 ELSE 0.0 END) AS hit_rate, SUM(b.pnl_units) AS pnl_total FROM bets b JOIN predictions p ON p.id = b.prediction_id WHERE b.status IN ('won','lost') AND b.settled_at > NOW() - INTERVAL '30 days' GROUP BY 1 ORDER BY 1",
+          "format": "table"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Bankroll curve (units)",
+      "type": "timeseries",
+      "datasource": {"type": "postgres"},
+      "gridPos": {"h": 10, "w": 24, "x": 0, "y": 14},
+      "targets": [
+        {
+          "rawSql": "SELECT ts AS time, bankroll_units FROM bankroll_history WHERE is_paper = true AND ts > NOW() - INTERVAL '90 days' ORDER BY ts",
+          "format": "time_series"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "Picks descartados — skip_reason",
+      "type": "piechart",
+      "datasource": {"type": "postgres"},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 24},
+      "targets": [
+        {
+          "rawSql": "SELECT skip_reason AS metric, COUNT(*) AS value FROM predictions WHERE decision = 'skip' AND created_at > NOW() - INTERVAL '7 days' GROUP BY 1",
+          "format": "table"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "title": "ROI por región MX vs US",
+      "type": "bargauge",
+      "datasource": {"type": "postgres"},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 24},
+      "targets": [
+        {
+          "rawSql": "SELECT CASE WHEN b.bookmaker IN ('caliente','strendus','codere_mx','betway_mx','betano_mx','betsson_mx','bwin_mx','novibet_mx') THEN 'MX' WHEN b.bookmaker IN ('draftkings','fanduel','betmgm','caesars','fanatics','betrivers','espn_bet','hardrock','circa') THEN 'US' ELSE 'other' END AS region, SUM(b.pnl_units) / NULLIF(SUM(b.stake_units),0) AS roi FROM bets b WHERE b.status IN ('won','lost') AND b.settled_at > NOW() - INTERVAL '30 days' GROUP BY 1",
+          "format": "table"
+        }
+      ]
+    }
+  ]
+}

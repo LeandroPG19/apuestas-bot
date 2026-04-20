@@ -1,0 +1,17 @@
+# CODEOWNERS — Revisores automáticos por path.
+# Referencia: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# Owner global
+*   @leandro
+
+# Áreas críticas requieren review explícito
+/.github/          @leandro
+/docker/           @leandro
+/migrations/       @leandro
+/src/apuestas/ml/  @leandro
+/src/apuestas/betting/  @leandro
+/src/apuestas/risk/     @leandro
+/docs/             @leandro
+/pyproject.toml    @leandro
+/uv.lock           @leandro
+/CLAUDE.md         @leandro

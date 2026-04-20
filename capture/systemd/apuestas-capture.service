@@ -1,0 +1,21 @@
+[Unit]
+Description=Apuestas — Capture job (CLV closing line)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h/proyectos/apuestas
+ExecStart=/usr/bin/env uv run python capture/apuestas_capture.py
+StandardOutput=append:%h/proyectos/apuestas/logs/capture.log
+StandardError=append:%h/proyectos/apuestas/logs/capture.log
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
+# Límites defensivos
+MemoryMax=150M
+CPUQuota=25%
+TimeoutStartSec=120
+
+[Install]
+WantedBy=default.target

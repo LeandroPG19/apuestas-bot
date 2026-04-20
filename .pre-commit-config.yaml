@@ -1,0 +1,111 @@
+# .pre-commit-config.yaml — hooks locales ejecutados antes de cada commit.
+# Instalar con: uv run pre-commit install
+# Ejecutar manual: uv run pre-commit run --all-files
+
+default_install_hook_types: [pre-commit, commit-msg, pre-push]
+default_stages: [pre-commit]
+fail_fast: false
+
+repos:
+  # ─── Hooks básicos ───────────────────────────────────────────────────────
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+        exclude: '^docs/|\.md$'
+      - id: end-of-file-fixer
+        exclude: '\.min\.(js|css)$'
+      - id: check-yaml
+        args: ['--allow-multiple-documents']
+        exclude: '^\.github/'   # GitHub Actions uses on:
+      - id: check-toml
+      - id: check-json
+      - id: check-added-large-files
+        args: ['--maxkb=1024']
+      - id: check-merge-conflict
+      - id: check-case-conflict
+      - id: mixed-line-ending
+        args: ['--fix=lf']
+      - id: detect-private-key
+      - id: check-executables-have-shebangs
+      - id: check-shebang-scripts-are-executable
+      - id: no-commit-to-branch
+        args: ['--branch=main', '--branch=master', '--branch=production']
+
+  # ─── Ruff linting + formatting ───────────────────────────────────────────
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.14.1
+    hooks:
+      - id: ruff
+        args: ['--fix', '--exit-non-zero-on-fix']
+      - id: ruff-format
+
+  # ─── Mypy strict ─────────────────────────────────────────────────────────
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.18.0
+    hooks:
+      - id: mypy
+        additional_dependencies:
+          - pydantic>=2.12
+          - msgspec>=0.19
+          - types-pyyaml
+          - sqlalchemy[asyncio]>=2.0.45
+        args: ['--strict', '--ignore-missing-imports']
+        exclude: '^(tests/|migrations/|scripts/|capture/|notebooks/)'
+
+  # ─── Detect secrets (Yelp) ───────────────────────────────────────────────
+  - repo: https://github.com/Yelp/detect-secrets
+    rev: v1.5.0
+    hooks:
+      - id: detect-secrets
+        args: ['--baseline', '.secrets.baseline']
+        exclude: '\.secrets\.baseline$|^tests/fixtures/'
+
+  # ─── Gitleaks ────────────────────────────────────────────────────────────
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.27.2
+    hooks:
+      - id: gitleaks
+
+  # ─── Shellcheck para scripts bash ────────────────────────────────────────
+  - repo: https://github.com/shellcheck-py/shellcheck-py
+    rev: v0.10.0.1
+    hooks:
+      - id: shellcheck
+        args: ['--severity=warning']
+
+  # ─── Hadolint para Dockerfile ────────────────────────────────────────────
+  - repo: https://github.com/hadolint/hadolint
+    rev: v2.13.1-beta
+    hooks:
+      - id: hadolint-docker
+        args: ['--ignore=DL3008', '--ignore=DL3018']
+
+  # ─── Validar alembic migrations ──────────────────────────────────────────
+  - repo: local
+    hooks:
+      - id: alembic-check
+        name: Validar sintaxis migraciones Alembic
+        entry: uv run python -c "import pathlib, ast; [ast.parse(p.read_text()) for p in pathlib.Path('migrations/versions').glob('*.py')]"
+        language: system
+        pass_filenames: false
+        files: '^migrations/versions/.+\.py$'
+
+  # ─── Pytest rápido en pre-push (no pre-commit, para no ralentizar) ────────
+  - repo: local
+    hooks:
+      - id: pytest-quick
+        name: pytest unit tests (pre-push)
+        entry: uv run pytest tests/unit -x -q --tb=short -k "not slow"
+        language: system
+        pass_filenames: false
+        stages: [pre-push]
+        always_run: true
+
+  # ─── Commit message conventional ──────────────────────────────────────────
+  - repo: https://github.com/compilerla/conventional-pre-commit
+    rev: v3.4.0
+    hooks:
+      - id: conventional-pre-commit
+        stages: [commit-msg]
+        args: ['--strict', '--force-scope', 'feat', 'fix', 'refactor', 'test', 'docs', 'ci', 'chore', 'perf', 'build']

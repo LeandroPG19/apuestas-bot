@@ -1,0 +1,2 @@
+bet_id,fecha,casa,deporte,mercado,outcome,stake_mxn,pnl_mxn,winnings_gross_mxn,isr_federal_mxn,isr_gto_mxn
+2,2026-04-19T21:48:27.338864+0000,test_book,nba,h2h,home,100.0,100.0,100.0,1.0,6.0

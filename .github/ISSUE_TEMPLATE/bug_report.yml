@@ -1,0 +1,88 @@
+name: 🐛 Bug report
+description: Reportar un defecto reproducible en el bot
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Gracias por reportar. Antes de enviar, verifica que no sea un tema ya abierto.
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Descripción
+      description: Resumen claro del problema
+      placeholder: "Al ejecutar `make analyze` para NBA ..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Pasos para reproducir
+      description: Secuencia exacta
+      value: |
+        1.
+        2.
+        3.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Comportamiento esperado
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Comportamiento actual
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs / stack trace
+      render: shell
+      description: docker compose logs api --tail=100
+    validations:
+      required: false
+
+  - type: input
+    id: env
+    attributes:
+      label: Entorno
+      placeholder: "Pop!_OS 24.04, Python 3.14.4t, PYTHON_GIL=0"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Área afectada
+      options:
+        - ingesta (API-Football, nba_api, etc.)
+        - ML (train, calibración, SHAP)
+        - betting (EV, Kelly, detector, regional)
+        - LLM (Qwen, TEI, RAG)
+        - observabilidad (SigNoz, Grafana)
+        - infra (Docker, migrations)
+        - seguridad
+        - otro
+    validations:
+      required: true
+
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Severidad
+      options:
+        - P0 (bloqueador; bot inutilizable)
+        - P1 (funcionalidad crítica fallando)
+        - P2 (funcionalidad secundaria afectada)
+        - P3 (cosmético / mejora)
+    validations:
+      required: true

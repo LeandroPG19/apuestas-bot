@@ -1,0 +1,47 @@
+version: 2
+
+updates:
+  # ─── Python deps via uv lock ─────────────────────────────────────────
+  # Nota: dependabot no soporta uv nativo; usamos workflow deps-audit.yml.
+  # Este dependabot maneja GitHub Actions y Docker images.
+
+  # ─── GitHub Actions ──────────────────────────────────────────────────
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: "America/Mexico_City"
+    open-pull-requests-limit: 5
+    reviewers:
+      - leandro
+    labels:
+      - "ci/cd"
+      - "dependencies"
+    commit-message:
+      prefix: "ci"
+      include: scope
+    groups:
+      actions-minor-patch:
+        update-types:
+          - "minor"
+          - "patch"
+
+  # ─── Docker base image ───────────────────────────────────────────────
+  - package-ecosystem: docker
+    directory: /docker
+    schedule:
+      interval: weekly
+      day: monday
+      time: "07:00"
+      timezone: "America/Mexico_City"
+    open-pull-requests-limit: 3
+    reviewers:
+      - leandro
+    labels:
+      - "docker"
+      - "dependencies"
+    commit-message:
+      prefix: "build"
+      include: scope

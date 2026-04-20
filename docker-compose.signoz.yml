@@ -1,0 +1,100 @@
+# docker-compose.signoz.yml — Observabilidad SigNoz opcional (§10 + §17.14).
+#
+# SigNoz = Otel collector + ClickHouse + UI unificado. Más ligero que LGTM
+# stack (~4 contenedores vs 6-7). Activar con:
+#   docker compose -f docker-compose.yml -f docker-compose.gpu.yml \
+#                  -f docker-compose.signoz.yml up -d
+#
+# Consumo de memoria: ~2 GB (clickhouse dominante).
+# UI en http://localhost:3301 (binding LAN configurable).
+
+services:
+  signoz-zookeeper:
+    image: bitnami/zookeeper:3.9.3
+    container_name: apuestas-signoz-zookeeper
+    restart: unless-stopped
+    environment:
+      ALLOW_ANONYMOUS_LOGIN: "yes"
+    volumes:
+      - signoz_zookeeper:/bitnami/zookeeper
+    networks:
+      - apuestas_net
+    mem_limit: 300m
+
+  signoz-clickhouse:
+    image: clickhouse/clickhouse-server:24.10-alpine
+    container_name: apuestas-signoz-clickhouse
+    restart: unless-stopped
+    depends_on:
+      - signoz-zookeeper
+    environment:
+      CLICKHOUSE_USER: clickhouse
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:-change-me-clickhouse}
+      CLICKHOUSE_DB: signoz_traces
+    volumes:
+      - signoz_clickhouse:/var/lib/clickhouse
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+    networks:
+      - apuestas_net
+    mem_limit: 1500m
+
+  signoz-query:
+    image: signoz/query-service:0.55.0
+    container_name: apuestas-signoz-query
+    restart: unless-stopped
+    depends_on:
+      signoz-clickhouse:
+        condition: service_started
+    environment:
+      ClickHouseUrl: tcp://clickhouse:${CLICKHOUSE_PASSWORD:-change-me-clickhouse}@signoz-clickhouse:9000
+      STORAGE: clickhouse
+      GODEBUG: netdns=go
+      TELEMETRY_ENABLED: "false"
+      DEPLOYMENT_TYPE: docker-standalone
+    networks:
+      - apuestas_net
+    mem_limit: 400m
+
+  signoz-frontend:
+    image: signoz/frontend:0.55.0
+    container_name: apuestas-signoz-ui
+    restart: unless-stopped
+    depends_on:
+      signoz-query:
+        condition: service_started
+    environment:
+      FRONTEND_API_ENDPOINT: http://signoz-query:8080
+    ports:
+      - "192.168.1.0/24:3301:3301"   # solo LAN; ajustar CIDR a tu red
+    networks:
+      - apuestas_net
+    mem_limit: 300m
+
+  signoz-otel:
+    image: signoz/signoz-otel-collector:0.111.0
+    container_name: apuestas-signoz-otel
+    restart: unless-stopped
+    command:
+      - "--config=/etc/otel-collector-config.yaml"
+    depends_on:
+      signoz-clickhouse:
+        condition: service_started
+    environment:
+      OTEL_RESOURCE_ATTRIBUTES: "service.name=signoz,service.version=0.55.0"
+    volumes:
+      - ./config/signoz/otel-config.yaml:/etc/otel-collector-config.yaml:ro
+    expose:
+      - "4317"  # OTLP gRPC
+      - "4318"  # OTLP HTTP
+    networks:
+      - apuestas_net
+    mem_limit: 400m
+
+volumes:
+  signoz_zookeeper:
+    driver: local
+  signoz_clickhouse:
+    driver: local

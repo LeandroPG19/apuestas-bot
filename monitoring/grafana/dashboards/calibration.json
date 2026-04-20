@@ -1,0 +1,66 @@
+{
+  "id": null,
+  "uid": "apuestas-calibration",
+  "title": "Apuestas — Calibración y Drift",
+  "tags": ["apuestas", "ml", "calibration"],
+  "schemaVersion": 38,
+  "version": 1,
+  "refresh": "5m",
+  "time": {"from": "now-30d", "to": "now"},
+  "panels": [
+    {
+      "id": 1,
+      "title": "Reliability diagram (30d)",
+      "type": "timeseries",
+      "datasource": {"type": "postgres"},
+      "gridPos": {"h": 10, "w": 12, "x": 0, "y": 0},
+      "targets": [
+        {
+          "rawSql": "SELECT confidence_bucket AS time, mean_predicted, mean_actual FROM calibration_rolling WHERE window_days = 30 ORDER BY confidence_bucket",
+          "format": "table"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "ECE realized últimos 30d",
+      "type": "stat",
+      "datasource": {"type": "postgres"},
+      "gridPos": {"h": 6, "w": 6, "x": 12, "y": 0},
+      "targets": [
+        {
+          "rawSql": "SELECT AVG(ece_realized) AS ece FROM calibration_rolling WHERE window_days = 30",
+          "format": "table"
+        }
+      ],
+      "fieldConfig": {"defaults": {"unit": "none", "decimals": 4, "thresholds": {"steps": [{"color": "green", "value": null}, {"color": "orange", "value": 0.03}, {"color": "red", "value": 0.05}]}}}
+    },
+    {
+      "id": 3,
+      "title": "Brier realized 30d",
+      "type": "stat",
+      "datasource": {"type": "postgres"},
+      "gridPos": {"h": 6, "w": 6, "x": 18, "y": 0},
+      "targets": [
+        {
+          "rawSql": "SELECT AVG(brier_realized) AS brier FROM calibration_rolling WHERE window_days = 30",
+          "format": "table"
+        }
+      ],
+      "fieldConfig": {"defaults": {"unit": "none", "decimals": 4}}
+    },
+    {
+      "id": 4,
+      "title": "Picks por discrepancy_score (top 20)",
+      "type": "table",
+      "datasource": {"type": "postgres"},
+      "gridPos": {"h": 10, "w": 24, "x": 0, "y": 10},
+      "targets": [
+        {
+          "rawSql": "SELECT pm.id, pm.bet_id, pm.outcome, pm.discrepancy_score, pm.prediction_error, pm.calibration_miss, pm.llm_alignment_score FROM post_mortems pm ORDER BY pm.discrepancy_score DESC NULLS LAST LIMIT 20",
+          "format": "table"
+        }
+      ]
+    }
+  ]
+}

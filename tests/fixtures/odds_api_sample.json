@@ -1,0 +1,44 @@
+[
+  {
+    "id": "evt_abc_nba_20260425",
+    "sport_key": "basketball_nba",
+    "commence_time": "2026-04-25T23:00:00Z",
+    "home_team": "Boston Celtics",
+    "away_team": "New York Knicks",
+    "bookmakers": [
+      {
+        "key": "draftkings",
+        "title": "DraftKings",
+        "markets": [
+          {
+            "key": "h2h",
+            "outcomes": [
+              {"name": "Boston Celtics", "price": 1.71},
+              {"name": "New York Knicks", "price": 2.25}
+            ]
+          },
+          {
+            "key": "totals",
+            "outcomes": [
+              {"name": "Over", "price": 1.91, "point": 218.5},
+              {"name": "Under", "price": 1.91, "point": 218.5}
+            ]
+          }
+        ]
+      },
+      {
+        "key": "pinnacle",
+        "title": "Pinnacle",
+        "markets": [
+          {
+            "key": "h2h",
+            "outcomes": [
+              {"name": "Boston Celtics", "price": 1.74},
+              {"name": "New York Knicks", "price": 2.23}
+            ]
+          }
+        ]
+      }
+    ]
+  }
+]

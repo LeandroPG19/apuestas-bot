@@ -1,0 +1,79 @@
+# docker-compose.gpu.yml — override que añade servicios LLM con GPU passthrough.
+# Requiere nvidia-container-toolkit instalado en el host.
+# Uso:
+#   docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d
+
+services:
+  llm:
+    # llama.cpp server con build CUDA. Qwen 2.5 7B Q4_K_M montado como volumen.
+    image: ghcr.io/ggml-org/llama.cpp:server-cuda
+    container_name: apuestas-llm
+    restart: unless-stopped
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    environment:
+      LLAMA_ARG_MODEL: /models/qwen2.5-7b-instruct-q4_k_m.gguf
+      LLAMA_ARG_HOST: 0.0.0.0
+      LLAMA_ARG_PORT: "8080"
+      LLAMA_ARG_CTX_SIZE: "8192"
+      LLAMA_ARG_N_GPU_LAYERS: "99"
+      LLAMA_ARG_FLASH_ATTN: "1"
+      LLAMA_ARG_CACHE_TYPE_K: q8_0
+      LLAMA_ARG_CACHE_TYPE_V: q8_0
+      LLAMA_ARG_ALIAS: qwen2.5-7b-instruct
+      LLAMA_ARG_NO_WEBUI: "1"
+    volumes:
+      - ./models:/models:ro
+    expose:
+      - "8080"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/health || exit 1"]
+      interval: 20s
+      timeout: 5s
+      retries: 8
+      start_period: 60s
+    networks:
+      - apuestas_net
+    mem_limit: 1g
+
+  embed:
+    # text-embeddings-inference con BGE-M3 INT8
+    image: ghcr.io/huggingface/text-embeddings-inference:cuda-1.7
+    container_name: apuestas-embed
+    restart: unless-stopped
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    environment:
+      MODEL_ID: BAAI/bge-m3
+      DTYPE: int8
+      MAX_CONCURRENT_REQUESTS: "32"
+      MAX_BATCH_TOKENS: "16384"
+      MAX_CLIENT_BATCH_SIZE: "32"
+      HUGGINGFACE_HUB_CACHE: /data
+    volumes:
+      - embed_cache:/data
+    expose:
+      - "80"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:80/health || exit 1"]
+      interval: 20s
+      timeout: 5s
+      retries: 8
+      start_period: 90s
+    networks:
+      - apuestas_net
+    mem_limit: 600m
+
+volumes:
+  embed_cache:
+    driver: local

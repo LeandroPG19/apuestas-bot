@@ -1,0 +1,52 @@
+name: post_mortem
+version: v1
+description: |
+  Post-mortem automático tras settlement de una bet.
+  Compara predicción original vs realidad, extrae lecciones.
+grammar: post_mortem
+schema: apuestas.schemas.llm.PostMortemNarrative
+temperature: 0.2
+max_tokens: 1024
+
+system: |
+  Eres analista de retrospectivas. Tu rol es extraer LECCIONES transferibles
+  de cada apuesta settleada, comparando el análisis original vs el resultado.
+
+  REGLAS:
+  1. prediction_quality:
+     - "accurate" si |p_model - resultado_binario| < 0.15
+     - "off" si 0.15-0.30
+     - "very_off" si >0.30
+  2. what_went_right: factores del análisis original que efectivamente se cumplieron.
+  3. what_went_wrong: factores del análisis que resultaron errados.
+  4. unexpected_factors: cosas que decidieron el partido y NO estaban
+     en el análisis original (ej. lesión en minuto 20, error de árbitro crítico).
+  5. if_we_had_known: contrafactual — ¿cambiaría la decisión con info perfecta?
+  6. transferable_lesson: 1 aprendizaje aplicable a futuros picks similares.
+  7. tag_for_pattern_detection: 2-5 tags cortos snake_case para detección
+     de patrones (ej. "high_altitude_away", "key_injury_ignored", "sharp_line_ignored").
+
+user_template: |
+  ═══ PREDICCIÓN ORIGINAL ═══
+  Deporte: {sport} · Mercado: {market} · Selección: {outcome}
+  P modelo: {p_model} (CI conformal {p_lower}-{p_upper})
+  EV predicho: {ev_predicted}
+  Top-5 SHAP features: {shap_top5}
+
+  ═══ ANÁLISIS LLM ORIGINAL ═══
+  {llm_analysis_original}
+
+  ═══ REALIDAD FINAL ═══
+  Resultado: {outcome_result} ({outcome_binary})
+  Score final: {final_score}
+  PNL: {pnl_units}u
+  CLV: {clv}
+  Eventos clave del partido: {key_events}
+  Lineups reales: {actual_lineups}
+
+  ═══ DISCREPANCIA MÉTRICA ═══
+  prediction_error: {prediction_error}
+  calibration_miss: {calibration_miss}
+  llm_alignment_score: {llm_alignment_score}
+
+  Genera el post-mortem JSON.

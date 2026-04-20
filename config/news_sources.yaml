@@ -1,0 +1,72 @@
+# Fuentes RSS y subs de Reddit organizadas por deporte/contexto.
+# Cadencia refresh: cada 30 min.
+
+rss_feeds:
+  global:
+    - url: "https://www.espn.com/espn/rss/news"
+      lang: "en"
+      sports: ["nba", "mlb", "nfl", "soccer"]
+    - url: "https://feeds.bbci.co.uk/sport/rss.xml"
+      lang: "en"
+      sports: ["soccer"]
+  nba:
+    - url: "https://www.espn.com/espn/rss/nba/news"
+      lang: "en"
+      sports: ["nba"]
+    - url: "https://www.cbssports.com/rss/headlines/nba/"
+      lang: "en"
+      sports: ["nba"]
+  mlb:
+    - url: "https://www.espn.com/espn/rss/mlb/news"
+      lang: "en"
+      sports: ["mlb"]
+  nfl:
+    - url: "https://www.espn.com/espn/rss/nfl/news"
+      lang: "en"
+      sports: ["nfl"]
+  soccer_es:
+    - url: "https://estaticos.marca.com/rss/futbol.xml"
+      lang: "es"
+      sports: ["soccer"]
+    - url: "https://as.com/rss/tags/ultimas_noticias.xml"
+      lang: "es"
+      sports: ["soccer"]
+  boxing:
+    - url: "https://www.espn.com/espn/rss/boxing/news"
+      lang: "en"
+      sports: ["boxing"]
+
+reddit_subs:
+  - name: "nba"
+    sports: ["nba"]
+    min_upvotes: 50
+  - name: "nfl"
+    sports: ["nfl"]
+    min_upvotes: 100
+  - name: "baseball"
+    sports: ["mlb"]
+    min_upvotes: 50
+  - name: "soccer"
+    sports: ["soccer"]
+    min_upvotes: 100
+  - name: "Liga_MX"
+    sports: ["soccer"]
+    min_upvotes: 20
+  - name: "Boxing"
+    sports: ["boxing"]
+    min_upvotes: 20
+  - name: "sportsbook"
+    sports: ["nba", "mlb", "nfl", "soccer", "boxing"]
+    min_upvotes: 30
+    # Sub con discusión de picks y movimiento de líneas
+
+bluesky_feeds:
+  # Cuentas de beat-writers y reporters. Bluesky API es gratis (atproto).
+  - handle: "wojespn.bsky.social"
+    sports: ["nba"]
+  - handle: "shamscharania.bsky.social"
+    sports: ["nba"]
+  - handle: "schefter.bsky.social"
+    sports: ["nfl"]
+  - handle: "jeffpassan.bsky.social"
+    sports: ["mlb"]

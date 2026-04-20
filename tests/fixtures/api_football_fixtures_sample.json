@@ -1,0 +1,40 @@
+{
+  "response": [
+    {
+      "fixture": {
+        "id": 1239001,
+        "date": "2026-04-25T02:00:00+00:00",
+        "venue": {"name": "Estadio Azteca", "city": "Ciudad de México"},
+        "status": {"long": "Match Finished", "short": "FT", "elapsed": 90}
+      },
+      "league": {"id": 262, "name": "Liga MX", "season": 2025},
+      "teams": {
+        "home": {"id": 2279, "name": "Club América", "winner": true},
+        "away": {"id": 2287, "name": "Chivas Guadalajara", "winner": false}
+      },
+      "goals": {"home": 2, "away": 1},
+      "score": {
+        "halftime": {"home": 1, "away": 0},
+        "fulltime": {"home": 2, "away": 1}
+      }
+    },
+    {
+      "fixture": {
+        "id": 1239002,
+        "date": "2026-04-26T03:30:00+00:00",
+        "venue": {"name": "Estadio BBVA", "city": "Monterrey"},
+        "status": {"long": "Not Started", "short": "NS", "elapsed": null}
+      },
+      "league": {"id": 262, "name": "Liga MX", "season": 2025},
+      "teams": {
+        "home": {"id": 2285, "name": "Monterrey", "winner": null},
+        "away": {"id": 2290, "name": "Pumas UNAM", "winner": null}
+      },
+      "goals": {"home": null, "away": null},
+      "score": {
+        "halftime": {"home": null, "away": null},
+        "fulltime": {"home": null, "away": null}
+      }
+    }
+  ]
+}

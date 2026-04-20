@@ -1,0 +1,138 @@
+# Seed mínimo de venues críticos con altitude + lat/lon.
+# Ampliable con ingesta automática + geocoding posterior.
+
+# ═══ Fútbol México (Liga MX) ═══
+- external_id: "soccer_venue_azteca"
+  name: "Estadio Azteca"
+  city: "Ciudad de México"
+  country: "México"
+  timezone: "America/Mexico_City"
+  lat: 19.3030
+  lon: -99.1504
+  altitude_m: 2240
+  capacity: 87000
+  surface: "grass"
+  roof: "open"
+
+- external_id: "soccer_venue_akron"
+  name: "Estadio Akron"
+  city: "Guadalajara"
+  country: "México"
+  timezone: "America/Mexico_City"
+  lat: 20.6819
+  lon: -103.4624
+  altitude_m: 1566
+  capacity: 46232
+  surface: "grass"
+  roof: "open"
+
+- external_id: "soccer_venue_universitario"
+  name: "Estadio Universitario"
+  city: "Monterrey"
+  country: "México"
+  timezone: "America/Monterrey"
+  lat: 25.7231
+  lon: -100.3142
+  altitude_m: 537
+  capacity: 42000
+  surface: "grass"
+  roof: "open"
+
+# ═══ NBA (venues con altitud relevante) ═══
+- external_id: "nba_venue_denver"
+  name: "Ball Arena"
+  city: "Denver"
+  country: "USA"
+  timezone: "America/Denver"
+  lat: 39.7487
+  lon: -105.0077
+  altitude_m: 1610
+  capacity: 19520
+  surface: "hardwood"
+  roof: "indoor"
+
+- external_id: "nba_venue_utah"
+  name: "Delta Center"
+  city: "Salt Lake City"
+  country: "USA"
+  timezone: "America/Denver"
+  lat: 40.7683
+  lon: -111.9010
+  altitude_m: 1288
+  capacity: 18306
+  surface: "hardwood"
+  roof: "indoor"
+
+# ═══ MLB (venues outdoor con park factors extremos) ═══
+- external_id: "mlb_venue_coors"
+  name: "Coors Field"
+  city: "Denver"
+  country: "USA"
+  timezone: "America/Denver"
+  lat: 39.7562
+  lon: -104.9942
+  altitude_m: 1580
+  capacity: 50144
+  surface: "grass"
+  roof: "open"
+
+- external_id: "mlb_venue_petco"
+  name: "Petco Park"
+  city: "San Diego"
+  country: "USA"
+  timezone: "America/Los_Angeles"
+  lat: 32.7076
+  lon: -117.1570
+  altitude_m: 18
+  capacity: 40209
+  surface: "grass"
+  roof: "open"
+
+- external_id: "mlb_venue_fenway"
+  name: "Fenway Park"
+  city: "Boston"
+  country: "USA"
+  timezone: "America/New_York"
+  lat: 42.3467
+  lon: -71.0972
+  altitude_m: 6
+  capacity: 37755
+  surface: "grass"
+  roof: "open"
+
+# ═══ NFL (domes vs outdoor importante) ═══
+- external_id: "nfl_venue_lambeau"
+  name: "Lambeau Field"
+  city: "Green Bay"
+  country: "USA"
+  timezone: "America/Chicago"
+  lat: 44.5013
+  lon: -88.0622
+  altitude_m: 195
+  capacity: 81441
+  surface: "grass"
+  roof: "open"
+
+- external_id: "nfl_venue_sofi"
+  name: "SoFi Stadium"
+  city: "Inglewood"
+  country: "USA"
+  timezone: "America/Los_Angeles"
+  lat: 33.9533
+  lon: -118.3387
+  altitude_m: 29
+  capacity: 70240
+  surface: "turf"
+  roof: "dome"
+
+- external_id: "nfl_venue_mercedes"
+  name: "Mercedes-Benz Stadium"
+  city: "Atlanta"
+  country: "USA"
+  timezone: "America/New_York"
+  lat: 33.7554
+  lon: -84.4008
+  altitude_m: 304
+  capacity: 71000
+  surface: "turf"
+  roof: "retractable"

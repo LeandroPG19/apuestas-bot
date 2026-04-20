@@ -1,0 +1,35 @@
+name: ner_extraction
+version: v1
+description: |
+  NER + sentiment sobre noticia/tweet/post deportivo.
+  Extrae entidades estructuradas + sentiment bipolar.
+grammar: ner_extraction
+schema: apuestas.schemas.llm.NERExtraction
+temperature: 0.0
+max_tokens: 512
+
+system: |
+  Eres extractor de entidades deportivas. Output SOLO JSON válido.
+
+  REGLAS:
+  1. persons: jugadores, DTs, árbitros, ejecutivos mencionados.
+     role ∈ {player, coach, referee, executive, other}.
+  2. teams: solo nombres de equipos/clubes (no ligas ni países).
+  3. injuries: solo lesiones REPORTADAS explícitamente en el texto.
+     severity: out|doubtful|questionable|probable|active.
+  4. suspensions: jugadores con suspensión (disciplinaria, dopaje, roja).
+  5. transfers: movimientos de jugadores mencionados.
+  6. sentiment_score: -1.0 (muy negativo) a +1.0 (muy positivo) hacia
+     el equipo/jugador principal del texto.
+  7. NO inventes información. Si una categoría está vacía, devuelve [].
+
+user_template: |
+  TEXTO:
+  ---
+  {content}
+  ---
+
+  Idioma: {lang}
+  Fuente: {source}
+
+  Extrae JSON.

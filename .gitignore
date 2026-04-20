@@ -1,0 +1,78 @@
+# Entorno
+.env
+.env.local
+.env.*.local
+*.key
+*.pem
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+.installed.cfg
+*.egg
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+reports/coverage/
+.mypy_cache/
+.ruff_cache/
+.hypothesis/
+
+# uv / pip
+.venv/
+venv/
+env/
+.python-version
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb_meta
+
+# Modelos (pesados)
+models/*.gguf
+models/*.safetensors
+models/*.bin
+models/*.pt
+models/*.onnx
+!models/.gitkeep
+
+# Datos
+data/
+exports/*.parquet
+exports/*.csv
+exports/*.json
+backups/*.dump
+backups/*.sql.gz
+
+# Reportes generados
+reports/backtests/*.html
+reports/calibration/*.html
+reports/notebooks/*.html
+
+# Docker volumes locales
+docker-volumes/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# Logs
+*.log
+logs/
+
+# Secretos
+.secrets.baseline
+
+# MCP
+.cuba-memorys-state/
+
+# Estado local
+.apuestas-state/

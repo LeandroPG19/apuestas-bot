@@ -1,0 +1,13 @@
+[Unit]
+Description=Apuestas — Capture job timer (cada 5 min)
+Requires=apuestas-capture.service
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=5min
+Persistent=true
+AccuracySec=30s
+Unit=apuestas-capture.service
+
+[Install]
+WantedBy=timers.target

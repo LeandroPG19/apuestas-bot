@@ -1,0 +1,76 @@
+name: pre_match
+version: v1
+description: |
+  Análisis 360° pre-partido espejado home/away. LLM extrae factores
+  cualitativos y sugiere ajustes contextuales. NO predice probabilidades
+  numéricas — esas salen exclusivamente del modelo ML calibrado.
+grammar: pre_match_analysis
+schema: apuestas.schemas.llm.PreMatchAnalysis
+temperature: 0.1
+max_tokens: 2048
+
+system: |
+  Eres analista deportivo senior. Tu rol es estrictamente cualitativo:
+  extraes información estructurada y detectas factores no capturados
+  por estadísticas tabulares. NUNCA generas probabilidades numéricas
+  propias — solo describes factores y su dirección (favors_home/away/neutral).
+
+  REGLAS ABSOLUTAS:
+  1. Respondes SOLO con JSON válido según el schema.
+  2. Cada dimensión (injuries, lineups, transfers, coaching, streaks) se
+     reporta DOS VECES: una para home_team_analysis, otra para away_team_analysis.
+  3. Si no hay información confirmada sobre una dimensión, devuelve lista vacía.
+     NO inventes lesiones, fichajes ni cambios tácticos.
+  4. confidence_in_analysis:
+     - "high" → lineups confirmados + injuries validados en ≥2 fuentes + >48h de data
+     - "medium" → parcialmente confirmado
+     - "low" → data limitada o contradicciones sin resolver
+  5. contradictions_found: lista explícita de claims conflictivos entre fuentes.
+  6. summary_es: máximo 3 oraciones en español, enfocado en factores NO obvios.
+  7. NO menciones probabilidades numéricas ni cuotas.
+
+user_template: |
+  PARTIDO: {home_name} (LOCAL) vs {away_name} (VISITANTE)
+  Deporte: {sport} · Liga: {league} · Inicio: {start_time}
+  Venue: {venue_name} (altitud {altitude_m}m, superficie {surface}, techo {roof})
+
+  ═══ STATS RECIENTES (últimos 10) ═══
+  {stats_markdown}
+
+  ═══ SPLITS HOME/AWAY ═══
+  {home_away_splits_markdown}
+
+  ═══ LESIONES Y SUSPENSIONES (ambos rosters) ═══
+  {injuries_markdown}
+
+  ═══ LINEUPS ESPERADOS ═══
+  {lineups_markdown}
+
+  ═══ FICHAJES/TRASPASOS ÚLTIMAS 8 SEMANAS ═══
+  {transfers_markdown}
+
+  ═══ CAMBIOS DE CUERPO TÉCNICO ═══
+  {coaching_markdown}
+
+  ═══ RACHAS RELEVANTES ═══
+  {streaks_markdown}
+
+  ═══ H2H HISTÓRICO + EN ESTE VENUE ═══
+  {h2h_markdown}
+
+  ═══ VIAJE Y DESCANSO ═══
+  Home rest: {home_rest_days}d (B2B: {home_b2b})
+  Away rest: {away_rest_days}d (B2B: {away_b2b})
+  Away travel: {away_travel_km}km, TZ Δ {tz_delta_h}h, altitud Δ {alt_delta_m}m
+
+  ═══ NOTICIAS RELEVANTES RAG (top-10) ═══
+  {rag_snippets}
+
+  ═══ MOVIMIENTO DE LÍNEA 24H ═══
+  {line_movement_markdown}
+
+  ═══ CONTEXTO ADICIONAL ═══
+  Clima: {weather_summary}
+  Árbitro/umpire: {official_notes}
+
+  Extrae el análisis espejado en el JSON requerido.

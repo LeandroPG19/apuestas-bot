@@ -1,0 +1,33 @@
+# Normalización line-endings
+* text=auto eol=lf
+
+# Archivos binarios
+*.gguf      binary
+*.safetensors binary
+*.bin       binary
+*.pt        binary
+*.onnx      binary
+*.pkl       binary
+*.parquet   binary
+*.dump      binary
+*.png       binary
+*.jpg       binary
+*.jpeg      binary
+*.webp      binary
+*.pdf       binary
+
+# Diffs mejorados
+*.py         diff=python
+*.md         diff=markdown
+
+# Export-ignore (git archive)
+.github/            export-ignore
+.claude/            export-ignore
+tests/              export-ignore
+notebooks/          export-ignore
+.pre-commit-config.yaml export-ignore
+.secrets.baseline   export-ignore
+
+# Linguist overrides (GitHub stats)
+migrations/**       linguist-generated=false
+notebooks/**        linguist-vendored=true

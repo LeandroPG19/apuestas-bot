@@ -1,0 +1,51 @@
+name: 🚀 Feature request
+description: Proponer una mejora o funcionalidad nueva
+labels: ["enhancement", "triage"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problema / motivación
+      description: ¿Qué dolor resuelve? ¿Qué oportunidad captura?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Propuesta
+      description: Qué se construiría. Puede incluir referencias al plan (§X).
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternativas consideradas
+    validations:
+      required: false
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Área
+      options:
+        - nuevo deporte
+        - nuevo mercado / player prop
+        - modelo ML
+        - motor EV / Kelly
+        - LLM / RAG
+        - observabilidad
+        - casa de apuestas nueva (MX/US)
+        - otro
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Pre-checks
+      options:
+        - label: Verifiqué que no hay un issue duplicado
+        - label: Revisé el plan maestro (`~/.claude/plans/...`)
+        - label: Leí el anti-patterns checklist (`docs/anti-patterns-checklist.md`)
