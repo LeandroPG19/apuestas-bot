@@ -38,8 +38,8 @@ dependencies = [
     "pydantic==2.12.5",
     "pydantic-settings==2.13.1",
     "msgspec==0.20.0",
-    "python-dotenv==1.0.1",
-    "orjson==3.11.2",
+    "python-dotenv==1.2.2",
+    "orjson==3.11.6",
     "pyyaml==6.0.3",
     "types-pyyaml==6.0.12.20260408",
     # ── Task queue / orquestación ─────────────────────────────────────────
@@ -79,7 +79,7 @@ dependencies = [
 
 [project.optional-dependencies]
 ml = [
-    "lightgbm==4.5.0",
+    "lightgbm==4.6.0",
     "xgboost==2.1.4",
     "catboost==1.2.9",
     "scikit-learn==1.7.2",
@@ -115,9 +115,9 @@ llm = [
     "litellm==1.83.10",
     "sentence-transformers==5.1.0",
     "smolagents==1.22.0",
-    "pydantic-ai==0.4.2",
+    "pydantic-ai==0.4.2",  # SSRF fix requiere 1.56.0; bloqueado por OTel/mcp ecosystem — TODO migrar stack completo
     "pgvector==0.4.1",
-    "mcp==1.15.0",
+    "mcp==1.15.0",  # DNS rebinding fix requiere 1.23.0; bloqueado por dep chain — mitigación: bind sólo a 127.0.0.1
 ]
 scraping = [
     "selectolax==0.3.34",
@@ -146,7 +146,7 @@ weather = [
     "meteostat==1.7.2",
 ]
 dev = [
-    "pytest==8.4.2",
+    "pytest==8.4.2",  # bloqueado en 8.4.x por camoufox→seleniumbase; reabrir con scrape stack moderno
     "pytest-asyncio==1.3.0",
     "pytest-cov==6.1.0",
     "pytest-xdist==3.8.0",
@@ -157,7 +157,7 @@ dev = [
     "pre-commit==4.3.0",
     "detect-secrets==1.5.0",
     "ipykernel==7.1.0",
-    "jupyterlab==4.5.1",
+    "jupyterlab==4.5.7",
     "papermill==2.6.0",
     "py-spy==0.4.1",
     "memory-profiler==0.61.0",
@@ -187,8 +187,23 @@ python-downloads = "automatic"
 # Overrides para deps transitivas con wheels incompatibles en x86_64/cp314.
 # kaleido 0.2.1.post1 (pineado indirecto por statsbombpy→plotly legacy) solo
 # publica wheel armv7l; kaleido>=1.0.0 es pure-python y corre en cualquier plat.
+#
+# El resto son fixes de seguridad (Dependabot 2026-05-04):
+#   - aiohttp >= 3.13.4    → CVE-2026-34518/19/20 + 6 más
+#   - gitpython >= 3.1.47  → cmd injection
+#   - urllib3 >= 2.6.3     → 3 CVEs decompression-bomb
+#   - requests >= 2.33.0   → CVE tmp file reuse
+#   - transformers >= 4.58 → arbitrary code exec en Trainer (la rc3 es 5.0.0; pinchamos al >= 4.58 si existe, caemos a último 4.x estable mientras tanto)
 override-dependencies = [
     "kaleido>=1.2.0",
+    "aiohttp>=3.13.4",
+    "gitpython>=3.1.47",
+    "urllib3>=2.6.3",
+    "requests>=2.33.0",
+    # Forzar python-dotenv seguro contra el pin estricto de litellm 1.83.10
+    "python-dotenv>=1.2.2",
+    # Forzar lightgbm 4.6 (CVE-2024-43598 RCE) sobre el cap < 4.6 de nannyml 0.13.1
+    "lightgbm>=4.6.0",
 ]
 
 [dependency-groups]
