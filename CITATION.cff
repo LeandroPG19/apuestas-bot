@@ -1,0 +1,30 @@
+cff-version: 1.2.0
+title: "apuestas-bot: Multi-sport value betting detector"
+message: "If you use this software, please cite it as below."
+type: software
+authors:
+  - family-names: "Pérez G."
+    given-names: "Leandro"
+    alias: "LeandroPG19"
+repository-code: "https://github.com/LeandroPG19/apuestas-bot"
+url: "https://github.com/LeandroPG19/apuestas-bot"
+abstract: >-
+  Multi-sport sports betting bot that detects positive expected value (+EV)
+  alerts over de-vigged fair odds from Pinnacle, Polymarket, and Kalshi.
+  Built with Python 3.14 free-threaded, FastAPI, SQLAlchemy 2.0 async,
+  PostgreSQL + TimescaleDB, LightGBM/XGBoost/CatBoost ensembles, MAPIE
+  conformal prediction, and Dixon-Coles for soccer. Runs 100% locally
+  with Telegram bot integration.
+keywords:
+  - sports-betting
+  - machine-learning
+  - conformal-prediction
+  - dixon-coles
+  - value-betting
+  - python
+  - fastapi
+  - postgresql
+  - telegram-bot
+license: MIT
+version: "0.1.0"
+date-released: "2026-05-04"

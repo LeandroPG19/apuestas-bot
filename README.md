@@ -1,4 +1,14 @@
-# apuestas — Bot de Apuestas Deportivas 100% Local
+# apuestas-bot — Bot de Apuestas Deportivas 100% Local
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Python](https://img.shields.io/badge/python-3.14.4-blue.svg)](https://www.python.org/downloads/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.128-009688.svg)](https://fastapi.tiangolo.com/)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-336791.svg)](https://www.postgresql.org/)
+[![Docker](https://img.shields.io/badge/Docker-Compose-2496ED.svg)](https://docs.docker.com/compose/)
+[![Code style: ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://docs.astral.sh/ruff/)
+[![Pre-commit](https://img.shields.io/badge/pre--commit-enabled-brightgreen.svg)](https://pre-commit.com/)
+[![GitHub stars](https://img.shields.io/github/stars/LeandroPG19/apuestas-bot?style=social)](https://github.com/LeandroPG19/apuestas-bot/stargazers)
+[![GitHub forks](https://img.shields.io/github/forks/LeandroPG19/apuestas-bot?style=social)](https://github.com/LeandroPG19/apuestas-bot/network/members)
 
 Bot multi-deporte (NBA · MLB · NFL · Fútbol · Tenis · NHL · Boxeo) que detecta valor (+EV)
 sobre odds *fair* Pinnacle/Polymarket de-vigged y emite alertas por Telegram.
@@ -467,12 +477,45 @@ código.
 
 ## Contribuciones
 
-Issues y PRs bienvenidos. Antes de abrir un PR:
+Issues y PRs bienvenidos. Lee [CONTRIBUTING.md](CONTRIBUTING.md) para el workflow
+completo. Antes de abrir un PR:
 
 ```bash
-make audit-deps           # verificar lock al día
-uv run pytest -x          # tests pasan
-uv run ruff check         # lint clean
-uv run mypy src/          # types OK
+make audit-deps             # verificar lock al día
+uv run pytest -x            # tests pasan
+uv run ruff check           # lint clean
+uv run mypy src/            # types OK
 pre-commit run --all-files  # detect-secrets + gitleaks + ruff format
+```
+
+Áreas con más necesidad de ayuda:
+
+- Modelos por deporte (Tennis, NHL, Boxeo, MMA) — ver [BACKLOG.md](BACKLOG.md)
+- Integraciones bookmakers regionales
+- Performance SQL queries y batching Telegram
+- Documentación + tutoriales
+
+## Comunidad
+
+- 💬 [Discussions](https://github.com/LeandroPG19/apuestas-bot/discussions) — preguntas y feedback
+- 🐛 [Issues](https://github.com/LeandroPG19/apuestas-bot/issues) — bugs y feature requests
+- 🔒 [Security policy](.github/SECURITY.md) — reportar vulnerabilidades
+
+## Star history
+
+[![Star History Chart](https://api.star-history.com/svg?repos=LeandroPG19/apuestas-bot&type=Date)](https://star-history.com/#LeandroPG19/apuestas-bot&Date)
+
+## Cómo citar
+
+Si usas este proyecto en investigación o trabajo, cita usando el archivo
+[CITATION.cff](CITATION.cff) o:
+
+```bibtex
+@software{perez_apuestas_bot_2026,
+  author = {Pérez G., Leandro},
+  title = {apuestas-bot: Multi-sport value betting detector},
+  year = {2026},
+  url = {https://github.com/LeandroPG19/apuestas-bot},
+  version = {0.1.0}
+}
 ```

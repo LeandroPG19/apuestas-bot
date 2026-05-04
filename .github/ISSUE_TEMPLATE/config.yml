@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 💬 Discussions
+    url: https://github.com/LeandroPG19/apuestas-bot/discussions
+    about: Preguntas, ideas, dudas de uso → mejor en Discussions que en Issues.
+  - name: 🔒 Security vulnerability
+    url: https://github.com/LeandroPG19/apuestas-bot/security/advisories/new
+    about: Reportar vulnerabilidad privada (NO abras issue público).
+  - name: 📖 Documentación
+    url: https://github.com/LeandroPG19/apuestas-bot#documentación
+    about: Setup, troubleshooting y arquitectura están en el README.
