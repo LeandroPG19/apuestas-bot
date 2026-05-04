@@ -1,5 +1,8 @@
 # apuestas-bot — Bot de Apuestas Deportivas 100% Local
 
+[![CI](https://github.com/LeandroPG19/apuestas-bot/actions/workflows/ci.yml/badge.svg)](https://github.com/LeandroPG19/apuestas-bot/actions/workflows/ci.yml)
+[![Security](https://github.com/LeandroPG19/apuestas-bot/actions/workflows/security.yml/badge.svg)](https://github.com/LeandroPG19/apuestas-bot/actions/workflows/security.yml)
+[![Deps Audit](https://github.com/LeandroPG19/apuestas-bot/actions/workflows/deps-audit.yml/badge.svg)](https://github.com/LeandroPG19/apuestas-bot/actions/workflows/deps-audit.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.14.4-blue.svg)](https://www.python.org/downloads/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.128-009688.svg)](https://fastapi.tiangolo.com/)
@@ -7,6 +10,7 @@
 [![Docker](https://img.shields.io/badge/Docker-Compose-2496ED.svg)](https://docs.docker.com/compose/)
 [![Code style: ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://docs.astral.sh/ruff/)
 [![Pre-commit](https://img.shields.io/badge/pre--commit-enabled-brightgreen.svg)](https://pre-commit.com/)
+[![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/LeandroPG19/apuestas-bot)
 [![GitHub stars](https://img.shields.io/github/stars/LeandroPG19/apuestas-bot?style=social)](https://github.com/LeandroPG19/apuestas-bot/stargazers)
 [![GitHub forks](https://img.shields.io/github/forks/LeandroPG19/apuestas-bot?style=social)](https://github.com/LeandroPG19/apuestas-bot/network/members)
 
