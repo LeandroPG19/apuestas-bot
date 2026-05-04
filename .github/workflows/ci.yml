@@ -101,7 +101,7 @@ jobs:
         run: uv run pytest tests/unit -x -v --tb=short --cov=apuestas --cov-report=xml
 
       - name: Upload coverage
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v6
         if: matrix.gil == '0'
         with:
           file: ./coverage.xml
