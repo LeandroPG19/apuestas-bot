@@ -195,7 +195,7 @@ jobs:
           docker compose -f docker-compose.yml -f docker-compose.gpu.yml config --quiet
 
       - name: Build image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: docker/Dockerfile
