@@ -51,7 +51,7 @@ jobs:
 
       - name: Crear PR con upgrades
         if: steps.upgrades.outputs.upgrades_available == 'true'
-        uses: peter-evans/create-pull-request@v7
+        uses: peter-evans/create-pull-request@v8
         with:
           commit-message: "chore(deps): weekly automated upgrade"
           title: "chore(deps): weekly automated upgrade — $(date +%F)"
