@@ -1,6 +1,6 @@
 ---
 name: apuestas-context
-description: Carga el contexto completo del bot de apuestas multi-deporte (NBA/MLB/NFL/Fútbol/Tenis/NHL/Boxeo). Se activa cuando trabajes en cualquier archivo del repo /home/leandro/proyectos/apuestas, escribas código Python para features de sports betting, modelos calibrados, de-vigging, Kelly correlation-aware, o uses los MCP cuba-memorys/cuba-search para memoria/research.
+description: Carga el contexto completo del bot de apuestas multi-deporte (NBA/MLB/NFL/Fútbol/Tenis/NHL/Boxeo). Se activa cuando trabajes en cualquier archivo del repo `apuestas`, escribas código Python para features de sports betting, modelos calibrados, de-vigging, Kelly correlation-aware, o uses los MCP cuba-memorys/cuba-search para memoria/research.
 ---
 
 # Apuestas Bot — Contexto del proyecto

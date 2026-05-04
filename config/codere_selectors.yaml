@@ -1,0 +1,32 @@
+# Selectores CSS/XPath para scraping Codere.mx (Gap #12).
+# Codere usa stack propio, menos anti-bot que Caliente → HTTP plano + selectolax.
+
+version: 1
+last_verified: "2026-04-20"
+
+urls:
+  liga_mx: "https://www.codere.mx/deportes/#/HomePage/Fútbol/México/Liga%20MX"
+  nba: "https://www.codere.mx/deportes/#/HomePage/Baloncesto/NBA"
+  mlb: "https://www.codere.mx/deportes/#/HomePage/Béisbol/MLB"
+  nfl: "https://www.codere.mx/deportes/#/HomePage/Fútbol%20Americano/NFL"
+
+selectors:
+  event_card: "div.event-card, article.event-row, li.event-item"
+  team_home: "span.team-home-name, .home-team, [data-testid='home-team']"
+  team_away: "span.team-away-name, .away-team, [data-testid='away-team']"
+  start_time: "span.event-start, time[datetime], .event-date"
+  market_section: "div.market-block, section[data-market]"
+  market_name: "h4.market-title, .market-name"
+  outcome_button: "button.odds-btn, .outcome-button"
+  outcome_label: ".outcome-name, .selection-label"
+  outcome_odds: ".odds-value, .odds-decimal"
+  outcome_line: ".handicap, [data-line]"
+
+# Codere Liga MX a veces usa markets en español distintos a Caliente
+market_aliases:
+  "Resultado Final (Incluye Tiempo Extra)": "h2h"
+  "1X2 Regular": "h2h"
+  "Ganador": "h2h"
+  "Total de Goles Más/Menos": "totals"
+  "Más/Menos": "totals"
+  "Hándicap": "spreads"

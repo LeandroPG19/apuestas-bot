@@ -54,6 +54,13 @@ class SHAPExplainer:
     @staticmethod
     def _extract_tree_model(model: Any) -> Any:
         """Descarta wrappers hasta encontrar un estimador tree-based."""
+        # _HistBinWrapper / _TempScaleWrapper: descartar binning post-hoc y usar
+        # el estimador base (booster tree-based real). Sin esto SHAP rechaza el
+        # wrapper y el pipeline pierde explicaciones.
+        if hasattr(model, "base") and hasattr(model, "predict_proba"):
+            base = getattr(model, "base", None)
+            if base is not None and base is not model:
+                return SHAPExplainer._extract_tree_model(base)
         # CalibratedClassifierCV tiene calibrated_classifiers_ con base estimator
         if hasattr(model, "calibrated_classifiers_") and model.calibrated_classifiers_:
             first = model.calibrated_classifiers_[0]
@@ -180,3 +187,23 @@ class SHAPExplainer:
             arr = arr[:, :, -1]
         mean_abs = np.mean(np.abs(arr), axis=0)
         return {self.feature_names[i]: float(mean_abs[i]) for i in range(len(self.feature_names))}
+
+
+def format_shap_top5_markdown(top5: list[dict[str, Any]] | list[SHAPFeature]) -> str:
+    """Formato human-readable para Telegram `/explain` (Sprint 8).
+
+    Acepta lista de dicts (como persistido en JSONB) o lista de SHAPFeature.
+    """
+    if not top5:
+        return "<i>(sin explicación SHAP disponible)</i>"
+    lines = ["<b>Top 5 features que influyeron en la predicción:</b>"]
+    for i, it in enumerate(top5, 1):
+        if isinstance(it, SHAPFeature):
+            feat = it.feature
+            val = float(it.shap)
+        else:
+            feat = str(it.get("feature") or it.get("name") or "?")
+            val = float(it.get("shap") or it.get("value") or 0.0)
+        arrow = "📈" if val > 0 else "📉"
+        lines.append(f"{i}. {arrow} <code>{feat}</code>: <b>{val:+.4f}</b>")
+    return "\n".join(lines)

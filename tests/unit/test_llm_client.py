@@ -106,7 +106,8 @@ async def test_structured_chat_invalid_then_retry_fails() -> None:
 
 @pytest.mark.asyncio
 async def test_structured_chat_retry_recovers() -> None:
-    bad_json = '{"not":"compliant"}'
+    # Field sentiment_score es float, pero pasamos string → ValidationError en 1er intento
+    bad_json = '{"sentiment_score":"not_a_number"}'
     good_json = json.dumps(
         {
             "persons": [],

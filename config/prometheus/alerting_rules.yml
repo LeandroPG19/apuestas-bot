@@ -1,0 +1,72 @@
+groups:
+  - name: apuestas_slo_calibration_burn_rate
+    rules:
+      # Critical: 14.4× burn rate sobre 1h → 2% budget consumido.
+      # Dispara si Brier 1h supera objective + 14.4 * (budget/28d).
+      - alert: ApuestasBrierBurnRateCritical
+        expr: |
+          (
+            avg_over_time(apuestas_pick_brier[1h]) by (sport)
+            -
+            on(sport) group_left() apuestas_brier_objective
+          ) > 14.4 * on(sport) group_left() apuestas_brier_budget_28d / 672  # 28d = 672h
+        for: 5m
+        labels:
+          severity: critical
+          service: apuestas
+        annotations:
+          summary: "Brier burn-rate crítico en {{ $labels.sport }}"
+          description: >
+            Calibración del modelo {{ $labels.sport }} degradándose a
+            14.4× burn rate. En 28d agota budget. Revisar drift monitor y
+            retrainar si consecutivo.
+          runbook: "https://docs.apuestas/runbooks/brier-burn-rate"
+
+      - alert: ApuestasBrierBurnRateWarning
+        expr: |
+          (
+            avg_over_time(apuestas_pick_brier[6h]) by (sport)
+            -
+            on(sport) group_left() apuestas_brier_objective
+          ) > 6.0 * on(sport) group_left() apuestas_brier_budget_28d / 672
+        for: 30m
+        labels:
+          severity: warning
+          service: apuestas
+        annotations:
+          summary: "Brier burn-rate warning en {{ $labels.sport }}"
+
+  - name: apuestas_drift_events
+    rules:
+      - alert: ApuestasDriftDetectedMultiMarket
+        expr: sum by (sport) (apuestas_drift_detected_total) > 2
+        for: 1h
+        labels:
+          severity: warning
+          service: apuestas
+        annotations:
+          summary: "≥3 markets con drift detectado en {{ $labels.sport }}"
+          description: "Posible degradación sistémica del modelo. Considera retrain."
+
+  - name: apuestas_bot_health
+    rules:
+      - alert: ApuestasBotSilent4h
+        expr: |
+          time() - apuestas_last_alert_emit_timestamp_seconds > 4 * 3600
+        for: 10m
+        labels:
+          severity: warning
+          service: apuestas
+        annotations:
+          summary: "Bot silencioso >4h en modo auto_on"
+          description: "Watchdog debería haber disparado. Revisar catchup/deep_analysis."
+
+      - alert: ApuestasLiveScoresZeroUpdatesDay
+        expr: sum(increase(apuestas_live_scores_updated_total[24h])) == 0
+        for: 6h
+        labels:
+          severity: critical
+          service: apuestas
+        annotations:
+          summary: "live_scores sin updates en 24h"
+          description: "Probable fallo de fuentes (OddsAPI/NBA API/NHL). Ver logs."

@@ -14,10 +14,10 @@ import uuid
 from prefect import flow
 from sqlalchemy import text
 
-from apuestas.betting.portfolio import allocate_portfolio
 from apuestas.db import session_scope
 from apuestas.flows.deep_analysis import (
     collect_odds_for_event,
+    emit_alerts,
     fetch_rag_context,
     llm_analyze_event,
     run_detector,
@@ -71,17 +71,21 @@ async def pre_match_flow(event_id: int) -> dict[str, object]:
         event, odds if not isinstance(odds, Exception) else None, correlation_id=correlation_id
     )
 
+    new_ids: list[int] = []
+    upgrades = 0
+    skips = 0
     if picks:
         bet_picks = [p for p in picks if p.is_bet]
-        allocations = await allocate_portfolio(bet_picks) if bet_picks else []
-    else:
-        allocations = []
+        if bet_picks:
+            new_ids, upgrades, skips = await emit_alerts(bet_picks)
 
     return {
         "found": True,
         "skipped": False,
         "picks_count": len(picks) if picks else 0,
-        "allocations": len(allocations),
+        "alerts_new": len(new_ids),
+        "alerts_upgrade": upgrades,
+        "alerts_skip": skips,
         "llm_ok": llm_result is not None,
     }
 

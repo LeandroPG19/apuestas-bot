@@ -1,0 +1,58 @@
+# SportsBetting.ag — offshore Panamá+Curaçao, same group as BetOnline, desde 2003
+book_slug: sportsbetting_ag
+region: OFFSHORE
+base_url: https://www.sportsbetting.ag
+cloudflare_bypass: true
+rate_limit_seconds: 1.5
+
+urls:
+  nba: "/sportsbook/basketball/nba"
+  mlb: "/sportsbook/baseball/mlb"
+  nfl: "/sportsbook/football/nfl"
+  nhl: "/sportsbook/hockey/nhl"
+  ncaaf: "/sportsbook/football/ncaa-football"
+  ncaab: "/sportsbook/basketball/ncaa-basketball"
+  liga_mx: "/sportsbook/soccer/mexico-primera-division"
+  epl: "/sportsbook/soccer/england-premier-league"
+  tennis: "/sportsbook/tennis"
+  boxing: "/sportsbook/boxing"
+  mma: "/sportsbook/mma"
+  esports: "/sportsbook/esports"
+
+sport_to_code:
+  nba: nba
+  mlb: mlb
+  nfl: nfl
+  nhl: nhl
+  ncaaf: nfl        # college football → nfl schema
+  ncaab: nba        # college basketball → nba schema
+  liga_mx: soccer
+  epl: soccer
+  tennis: tennis
+  boxing: boxing
+  mma: mma
+  esports: esports
+
+selectors:
+  event_card: "div.event-item, article.match-row"
+  team_home: ".competitor-home, .team-name-home"
+  team_away: ".competitor-away, .team-name-away"
+  start_time: "time, .event-start"
+  market_section: "div.market-block, section.odds-group"
+  market_name: "h3.market-label"
+  outcome_button: ".odds-cell, button.bet-option"
+  outcome_label: ".selection-name"
+  outcome_odds: ".odds-decimal-value"
+  outcome_line: ".line-value"
+
+market_aliases:
+  "Moneyline": h2h
+  "Line": spreads
+  "Point Spread": spreads
+  "Run Line": spreads
+  "Puck Line": spreads
+  "Total": totals
+  "Totals": totals
+  "O/U": totals
+  "Over/Under": totals
+  "To Qualify": h2h

@@ -22,7 +22,6 @@ import numpy as np
 import polars as pl
 from sqlalchemy import text
 
-from apuestas.config import get_settings
 from apuestas.db import session_scope
 from apuestas.features.common import compute_target
 from apuestas.features.nba import (
@@ -45,10 +44,14 @@ class NBATrainConfig:
     target: Target = "win"
     n_trials: int = 40
     split_train_pct: float = 0.80
-    split_cal_pct: float = 0.10  # holdout = resto
+    split_cal_pct: float = 0.10  # 22k matches — 10% es 2200 samples suficiente isotonic
     random_state: int = 42
     stage: Literal["shadow", "production"] = "shadow"
     experiment_name: str = "nba_moneyline"
+    # "auto" delega a select_calibration_method según n_per_class:
+    #   n>=1000 → isotonic, 100<=n<1000 → sigmoid, n<100 → venn_abers.
+    # Datasets <2k matches caen en sigmoid (más robusto para ECE).
+    calibration_method: Literal["auto", "sigmoid", "isotonic", "venn_abers"] = "auto"
 
 
 async def load_nba_training_data(
@@ -164,12 +167,41 @@ def build_training_frame(
         )
 
     features_df = build_nba_feature_frame(matches, team_games)
-    features_df = compute_target(
-        features_df,
-        kind=target,
-        home_score_col="home_score",
-        away_score_col="away_score",
-    )
+    # Sprint 10 Fase 2: Elo features (rating bidireccional + anti-leakage)
+    from apuestas.features.common import add_elo_features
+
+    features_df = add_elo_features(features_df, sport="nba")
+
+    # Sprint 14 #149 — context features (rest/b2b/travel/referee) opt-in.
+    if __import__("os").environ.get("APUESTAS_NBA_CONTEXT_FEATURES", "true").lower() == "true":
+        try:
+            features_df = _add_nba_context_columns_sync(features_df, matches)
+            logger.info("nba.context_features.added")
+        except Exception as exc:
+            logger.warning("nba.context_features.skip", error=str(exc)[:100])
+    # Para target=total/ats, compute_target requiere col extra. Como no tenemos
+    # líneas históricas por match (solo 25/22134 con odds_history), aplicamos
+    # un threshold fijo basado en distribución NBA: total ~225 (over/under),
+    # spread home -3.5 (cubre/no). Subóptimo vs línea real pero permite
+    # baseline funcional. Mismo approach que train_mlb total con line=8.5.
+    if target == "total":
+        features_df = features_df.with_columns(
+            ((pl.col("home_score") + pl.col("away_score")) > 224.5).cast(pl.Int8).alias("y")
+        )
+    elif target == "ats":
+        # Target: home cubre -3.5 (gana por 4+). Aproximación al spread NBA típico
+        # del favorito ligero. Modelo predice "p(home cubre -3.5)" — interpretar
+        # downstream comparando con línea real.
+        features_df = features_df.with_columns(
+            ((pl.col("home_score") - pl.col("away_score")) >= 4).cast(pl.Int8).alias("y")
+        )
+    else:
+        features_df = compute_target(
+            features_df,
+            kind=target,
+            home_score_col="home_score",
+            away_score_col="away_score",
+        )
 
     feat_cols = feature_columns(features_df)
     # Limpiar rows sin target o con todas las features NaN (primeros juegos)
@@ -184,6 +216,60 @@ def build_training_frame(
     features_df = features_df.filter(mask)
 
     return features_df, feat_cols
+
+
+def _add_nba_context_columns_sync(features_df: pl.DataFrame, matches: pl.DataFrame) -> pl.DataFrame:
+    """Compute rest days + b2b from matches schedule (purely from team game sequence).
+
+    Sin call a DB — usa el `matches` DataFrame ya traído. Features:
+      - days_rest_home/away, is_b2b_home/away, days_rest_diff.
+    """
+    if matches.height == 0 or features_df.height == 0:
+        return features_df
+    # Previous game per team from matches (long format)
+    home_records = matches.select(
+        pl.col("id").alias("game_id"),
+        pl.col("home_team_id").alias("team_id"),
+        pl.col("start_time").alias("game_time"),
+    )
+    away_records = matches.select(
+        pl.col("id").alias("game_id"),
+        pl.col("away_team_id").alias("team_id"),
+        pl.col("start_time").alias("game_time"),
+    )
+    all_games = pl.concat([home_records, away_records]).sort(["team_id", "game_time"])
+    all_games = all_games.with_columns(
+        (pl.col("game_time") - pl.col("game_time").shift(1).over("team_id"))
+        .dt.total_seconds()
+        .alias("seconds_rest")
+    )
+    all_games = all_games.with_columns(
+        (pl.col("seconds_rest") / 86400.0).alias("days_rest"),
+    )
+    all_games = all_games.with_columns(
+        pl.when(pl.col("days_rest") < 1.2).then(1.0).otherwise(0.0).alias("is_b2b")
+    )
+
+    # Join back to features
+    home_rest = all_games.rename(
+        {"team_id": "home_team_id", "days_rest": "days_rest_home", "is_b2b": "is_b2b_home"}
+    ).select(["game_id", "home_team_id", "days_rest_home", "is_b2b_home"])
+    away_rest = all_games.rename(
+        {"team_id": "away_team_id", "days_rest": "days_rest_away", "is_b2b": "is_b2b_away"}
+    ).select(["game_id", "away_team_id", "days_rest_away", "is_b2b_away"])
+
+    out = features_df
+    for name in ("game_id", "home_team_id", "away_team_id"):
+        if name not in out.columns and name in matches.columns:
+            pass
+    if "game_id" in out.columns:
+        out = out.join(home_rest, on=["game_id", "home_team_id"], how="left").join(
+            away_rest, on=["game_id", "away_team_id"], how="left"
+        )
+        out = out.with_columns(
+            (pl.col("days_rest_home") - pl.col("days_rest_away")).alias("days_rest_diff")
+        )
+    return out.fill_null(2.0)  # default 2 días rest
 
 
 def time_split(
@@ -216,13 +302,9 @@ async def train_nba(cfg: NBATrainConfig | None = None) -> TrainResult:
     """Pipeline completo con MLflow logging + registro shadow."""
     cfg = cfg or NBATrainConfig(seasons=["2023-24"])
 
-    settings = get_settings()
-    mlflow.set_tracking_uri(settings.llm.__class__.__module__)  # placeholder
-    tracking_uri = get_settings().obs.otel_exporter_otlp_endpoint  # reutilizable por env
-    # Preferir env var MLFLOW_TRACKING_URI
-    import os
+    import os as _os
 
-    mlflow.set_tracking_uri(os.environ.get("MLFLOW_TRACKING_URI", "http://mlflow:5000"))
+    mlflow.set_tracking_uri(_os.environ.get("MLFLOW_TRACKING_URI", "http://localhost:5000"))
     mlflow.set_experiment(cfg.experiment_name)
 
     matches, team_games = await load_nba_training_data(cfg.seasons)
@@ -283,6 +365,7 @@ async def train_nba(cfg: NBATrainConfig | None = None) -> TrainResult:
                 n_trials=cfg.n_trials,
                 random_state=cfg.random_state,
                 conformal_alpha=0.1,
+                calibration_method=cfg.calibration_method,
                 enable_stacking=True,
             ),
         )
@@ -357,6 +440,8 @@ async def _register_in_db(
     metrics: dict[str, float],
 ) -> None:
     """Insert/update en `model_registry_meta` tras cada entrenamiento."""
+    import json as _json
+
     async with session_scope() as session:
         await session.execute(
             text(
@@ -365,7 +450,7 @@ async def _register_in_db(
                   (mlflow_run_id, model_name, model_version, sport_code,
                    stage, promoted_at, performance_30d)
                 VALUES
-                  (:run_id, :name, :version, :sport, :stage, NOW(), :perf)
+                  (:run_id, :name, :version, :sport, :stage, NOW(), CAST(:perf AS jsonb))
                 ON CONFLICT (mlflow_run_id) DO UPDATE
                   SET stage = EXCLUDED.stage,
                       performance_30d = EXCLUDED.performance_30d
@@ -377,6 +462,6 @@ async def _register_in_db(
                 "version": datetime.now(tz=UTC).strftime("%Y%m%d_%H%M"),
                 "sport": sport_code,
                 "stage": stage,
-                "perf": metrics,
+                "perf": _json.dumps(metrics),
             },
         )

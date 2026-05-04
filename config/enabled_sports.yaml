@@ -1,0 +1,92 @@
+# Sports habilitados para EMIT picks — Sprint 14 Focus Mode.
+#
+# Permite desactivar deportes sin eliminar código ni data histórica.
+# Reactivación = cambiar `true/false` + reiniciar bot.
+#
+# Override por env: APUESTAS_DISABLE_SPORTS=tennis,boxing (comma-separated).
+#
+# Contexto 2026-04-24:
+# - MLB/NBA/soccer = 93% volumen picks. Focus.
+# - tennis: modelo Sackmann ECE 0.021 (top-tier) pero Odds API ATP/WTA inconsistente.
+# - NHL: 1 pick histórico; modelo regular season no generaliza playoffs.
+# - NFL: off-season hasta septiembre 2026.
+# - boxing/MMA: <100 matches DB, sin modelo entrenado.
+
+emit_enabled:
+  mlb: true       # 46% volumen actual, core + TFT pitcher pendiente
+  nba: true       # 13% volumen, modelo decente + playoff guard activo
+  soccer: true    # 34% volumen, 7 ligas por-league promoted hoy
+
+  # Desactivados — código intacto, reactivables
+  nhl: false      # reactivar tras train_nhl con features NST/MoneyPuck
+  tennis: false   # reactivar cuando Odds API tennis_atp/wta estables
+  nfl: false      # auto-reactivar 2026-09-01 (inicio NFL season)
+  boxing: false   # sin volumen histórico suficiente
+  mma: false      # sin volumen histórico suficiente
+
+# Retrain también respeta esta lista (evita recomputar modelos sin uso)
+retrain_enabled:
+  mlb: true
+  nba: true
+  soccer: true
+  nhl: false
+  tennis: false
+  nfl: false
+  boxing: false
+  mma: false
+
+# Auto-reactivación por fecha (futuro — cron job que flip this)
+scheduled_reactivation:
+  nfl: "2026-09-01"  # start of NFL preseason
+
+# Odds API — block-list de sport_keys específicos aunque su sport canónico esté
+# habilitado. Evita gastar créditos en ligas secundarias / sin volumen.
+# Cada entry corresponde a una clave de SPORT_KEY_MAP en odds_api_optimized.py.
+#
+# Reconfigurado 2026-04-28: usuario pidió activar al 100% las ligas más
+# importantes del mundo + sudamérica (Brasil, Argentina). El criterio para
+# habilitar es: tier-1 nacional o competición continental top. Las segundas
+# divisiones, FA Cup tipo eliminatorias menores, y ligas asiáticas con poco
+# volumen para casas LATAM siguen blocked para conservar créditos.
+odds_api_disabled_keys:
+  # NBA secundarias (mapean a 'nba' enabled, pero no aportan picks)
+  - wnba
+  - ncaab
+  - euroleague
+  # MLB secundarias
+  - kbo
+  - npb
+  # Soccer — segundas divisiones europeas (volumen bajo, mercados más eficientes
+  # raramente tienen edge; mejor centrar créditos en top divisions).
+  - soccer_efl_champ
+  - soccer_england_league1
+  - soccer_england_league2
+  - soccer_laliga2
+  - soccer_seriea_b
+  - soccer_ligue2
+  - soccer_bundesliga2
+  - soccer_brazil_b
+  # Soccer — eliminatorias copa doméstica con volumen variable
+  - soccer_fa_cup
+  - soccer_ufa_conference  # UEFA Conference (3a competición europea, baja prioridad)
+  # Soccer — Asia con poco volumen para casas LATAM
+  - soccer_j_league
+  - soccer_k_league
+  - soccer_china_superleague
+  - soccer_australia_aleague
+#
+# Activadas explícitamente (NO incluidas arriba → se polean):
+# Top 5 europeas:    soccer_epl, soccer_laliga, soccer_bundesliga,
+#                    soccer_seriea, soccer_ligue1
+# Continentales:     soccer_ucl, soccer_uel
+# Otras europeas:    soccer_netherlands_eredivisie, soccer_portugal_primeira_liga,
+#                    soccer_belgium_first_div, soccer_austria_bundesliga,
+#                    soccer_denmark_superliga, soccer_sweden_allsvenskan,
+#                    soccer_norway_eliteserien, soccer_greece_super_league,
+#                    soccer_turkey_super_league, soccer_russia_premier,
+#                    soccer_poland_ekstraklasa, soccer_switzerland_super
+# Sudamérica:        soccer_brazil (Brasileirão), soccer_argentina (Primera),
+#                    soccer_copa_libertadores, soccer_copa_sudamericana,
+#                    soccer_chile
+# Norteamérica:      soccer_liga_mx, soccer_mls
+# Medio Oriente:     soccer_saudi (Roshn Saudi League — top stars activos)

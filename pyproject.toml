@@ -5,7 +5,7 @@ description = "Sports betting bot — 100% local, multi-deporte (NBA/MLB/NFL/Fú
 readme = "README.md"
 requires-python = "==3.14.4"
 license = { text = "MIT" }
-authors = [{ name = "Leandro" }]
+authors = [{ name = "Leandro Pérez G." }]
 
 # ═══════════════════════════════════════════════════════════════════════════
 # TODAS LAS VERSIONES PINEADAS EXACTAS (==) PARA REPRODUCIBILIDAD.
@@ -27,33 +27,33 @@ dependencies = [
     # ── Core async / framework ────────────────────────────────────────────
     "fastapi==0.128.0",
     "granian[reload]==2.5.4",
-    "uvloop==0.21.0",
-    "httpx[http2]==0.29.0",
-    "asyncpg==0.30.1",
+    "uvloop==0.22.1",
+    "httpx[http2]==0.28.1",
+    "asyncpg==0.31.0",
     "sqlalchemy[asyncio]==2.0.45",
     "alembic==1.14.1",
-    "psycopg[binary,pool]==3.2.9",
-    "redis[hiredis]==5.3.1",
+    "psycopg[binary,pool]==3.2.13",
+    "redis[hiredis]==7.4.0",
     # ── Configuración / serialización ─────────────────────────────────────
-    "pydantic==2.12.3",
-    "pydantic-settings==2.8.2",
-    "msgspec==0.19.0",
+    "pydantic==2.12.5",
+    "pydantic-settings==2.13.1",
+    "msgspec==0.20.0",
     "python-dotenv==1.0.1",
     "orjson==3.11.2",
-    "pyyaml==6.0.2",
-    "types-pyyaml==6.0.12.20250122",
+    "pyyaml==6.0.3",
+    "types-pyyaml==6.0.12.20260408",
     # ── Task queue / orquestación ─────────────────────────────────────────
-    "taskiq[reload]==0.11.17",
-    "taskiq-redis==1.0.9",
+    "taskiq[reload]==0.12.2",
+    "taskiq-redis==1.2.2",
     "taskiq-fastapi==0.3.3",
     "prefect==3.4.11",
     # ── Data / ML core ────────────────────────────────────────────────────
-    "polars[pyarrow,timezone]==1.32.3",
+    "polars[pyarrow,timezone]==1.34.0",
     "pyarrow==22.0.0",
-    "duckdb==1.3.2",
+    "duckdb==1.4.2",
     "numpy==2.3.3",
-    "scipy==1.16.0",
-    "pandas==2.3.2",
+    "scipy==1.16.1",
+    "pandas==2.3.3",
     # ── Validación de datos ───────────────────────────────────────────────
     "pandera[polars]==0.24.0",
     # ── Observabilidad ────────────────────────────────────────────────────
@@ -65,6 +65,8 @@ dependencies = [
     "opentelemetry-instrumentation-httpx==0.55b0",
     "opentelemetry-exporter-otlp==1.34.0",
     "prometheus-fastapi-instrumentator==7.1.0",
+    "prometheus-client==0.21.1",  # Deuda 2: métricas custom en obs/metrics.py
+    "slowapi==0.1.9",
     # ── Resiliencia ───────────────────────────────────────────────────────
     "stamina==25.1.0",
     "pybreaker==1.3.0",
@@ -77,29 +79,31 @@ dependencies = [
 
 [project.optional-dependencies]
 ml = [
-    "lightgbm==4.6.0",
-    "xgboost==3.2.0",
+    "lightgbm==4.5.0",
+    "xgboost==2.1.4",
     "catboost==1.2.9",
     "scikit-learn==1.7.2",
     "optuna==4.5.0",
-    "mlflow==2.22.1",
-    "shap==0.48.0",
+    "mlflow==3.11.1",
+    "shap==0.51.0",
     "mapie==1.0.1",
     "crepes==0.8.0",
     "venn-abers==1.5.0",
-    "nannyml==0.13.0",
+    "nannyml==0.13.1",
     "evidently==0.7.5",
-    "penaltyblog==1.1.0",
-    "shin==0.3.0",
-    "tabpfn==2.2.1",
+    # river==0.22.0  # ADWIN drift detector — requiere Python ≤3.13 (build fails en 3.14);
+    #                  instalar manualmente con `uv pip install river` cuando migren wheels.
+    #                  El adaptador en monitors/concept_drift.py detecta su presencia y activa.
+    "penaltyblog==1.5.0",
+    "tabpfn==7.1.1",
     "statsmodels==0.14.5",
 ]
 sports = [
     "nba-api==1.9.0",
-    "pybaseball==2.3.1",
-    "nflreadpy==0.2.4",
+    "pybaseball==2.2.7",
+    "nflreadpy==0.1.5",
     "statsbombpy==1.14.0",
-    "soccerdata==1.9.2",
+    "soccerdata==1.9.0",
     "kloppy==3.18.0",
     "understatapi==0.2.0",
     "mlb-statsapi==1.9.0",
@@ -107,8 +111,8 @@ sports = [
     "hockey-scraper==1.3.1",
 ]
 llm = [
-    "openai==2.2.0",
-    "litellm==1.75.1",
+    "openai==2.24.0",
+    "litellm==1.83.10",
     "sentence-transformers==5.1.0",
     "smolagents==1.22.0",
     "pydantic-ai==0.4.2",
@@ -117,14 +121,18 @@ llm = [
 ]
 scraping = [
     "selectolax==0.3.34",
-    "camoufox[geoip]==0.5.2",
+    "camoufox[geoip]==0.4.11",
     "asyncpraw==7.8.1",
-    "atproto==0.0.70",
+    "atproto==0.0.65",
     "feedparser==6.0.12",
     "beautifulsoup4==4.13.5",
 ]
 bot = [
     "python-telegram-bot==22.4",
+]
+odds = [
+    # Fuentes sharp gratis (§15.4). Opcionales — el bot arranca sin ellas.
+    "betfairlightweight==2.23.2",
 ]
 tui = [
     "textual==0.86.3",
@@ -138,14 +146,14 @@ weather = [
     "meteostat==1.7.2",
 ]
 dev = [
-    "pytest==8.5.0",
-    "pytest-asyncio==0.26.0",
+    "pytest==8.4.2",
+    "pytest-asyncio==1.3.0",
     "pytest-cov==6.1.0",
     "pytest-xdist==3.8.0",
     "pytest-mock==3.15.0",
     "testcontainers[postgres,redis]==4.14.1",
     "ruff==0.14.1",
-    "mypy==1.18.0",
+    "mypy==1.20.1",
     "pre-commit==4.3.0",
     "detect-secrets==1.5.0",
     "ipykernel==7.1.0",
@@ -157,7 +165,7 @@ dev = [
     "pip-licenses==5.0.0",
 ]
 docs = [
-    "mkdocs==1.6.2",
+    "mkdocs==1.6.1",
     "mkdocs-material==9.6.2",
     "mkdocstrings[python]==0.30.0",
 ]
@@ -171,11 +179,20 @@ packages = ["src/apuestas"]
 
 [tool.uv]
 package = true
-dev-dependencies = []
 # Fuerza uso de Python 3.14.4t (free-threaded) si está disponible.
 # uv auto-detecta `python3.14t`; si no, cae a `python3.14` (con GIL).
 python-preference = "only-managed"
 python-downloads = "automatic"
+
+# Overrides para deps transitivas con wheels incompatibles en x86_64/cp314.
+# kaleido 0.2.1.post1 (pineado indirecto por statsbombpy→plotly legacy) solo
+# publica wheel armv7l; kaleido>=1.0.0 es pure-python y corre en cualquier plat.
+override-dependencies = [
+    "kaleido>=1.2.0",
+]
+
+[dependency-groups]
+dev = []
 
 [tool.ruff]
 line-length = 100
@@ -301,9 +318,15 @@ markers = [
     "free_threading: tests sensibles a thread-safety (free-threaded build)",
 ]
 filterwarnings = [
-    "error",
-    "ignore::DeprecationWarning:google.*",
+    # "error" sobre DeprecationWarning/PendingDeprecation que SEAN de nuestro código
+    "error::DeprecationWarning:apuestas.*",
+    "error::PendingDeprecationWarning:apuestas.*",
+    # Resto: default (no escala, solo emite). Muchas libs externas (prefect,
+    # testcontainers, pydantic v1 shim, coolname, nannyml) emiten
+    # DeprecationWarning/UserWarning en Python 3.14 que no controlamos.
+    "default",
     "ignore::pytest.PytestUnraisableExceptionWarning",
+    "ignore::ResourceWarning",
 ]
 
 [tool.coverage.run]

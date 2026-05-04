@@ -137,10 +137,17 @@ class DeepSeekClient:
         data = resp.json()
         content = data["choices"][0]["message"]["content"]
         usage = data.get("usage", {})
+        # DeepSeek expone cache hit/miss en usage:
+        #   prompt_cache_hit_tokens  : input tokens facturados a $0.07/M (-74%)
+        #   prompt_cache_miss_tokens : input tokens facturados a $0.27/M (full)
+        # Un sistema con system prompt estable + alto volumen mismo task_kind
+        # debería ver hit_ratio >50% tras unos minutos de calentamiento.
         return content, {
             "prompt_tokens": int(usage.get("prompt_tokens", 0)),
             "completion_tokens": int(usage.get("completion_tokens", 0)),
             "total_tokens": int(usage.get("total_tokens", 0)),
+            "cache_hit_tokens": int(usage.get("prompt_cache_hit_tokens", 0)),
+            "cache_miss_tokens": int(usage.get("prompt_cache_miss_tokens", 0)),
         }
 
     async def structured_chat(
@@ -219,12 +226,18 @@ class DeepSeekClient:
                     usage=usage,
                     latency_ms=elapsed_ms,
                 )
+                cache_hit = usage.get("cache_hit_tokens", 0)
+                cache_miss = usage.get("cache_miss_tokens", 0)
+                cache_ratio = (
+                    cache_hit / (cache_hit + cache_miss) if (cache_hit + cache_miss) > 0 else 0.0
+                )
                 logger.info(
                     "deepseek.structured_ok",
                     task_kind=task_kind,
                     model=self.model,
                     latency_ms=elapsed_ms,
                     tokens=usage.get("total_tokens", 0),
+                    cache_hit_ratio=round(cache_ratio, 3),
                 )
                 return validated
 
@@ -239,9 +252,22 @@ class DeepSeekClient:
         usage: dict[str, int],
         latency_ms: int,
     ) -> None:
-        """Persiste llamada en llm_calls para tracking de costos."""
-        # Costos DeepSeek V3.2 (abril 2026): $0.27/M input + $1.10/M output
-        cost_in = usage.get("prompt_tokens", 0) * 0.27e-6
+        """Persiste llamada en llm_calls para tracking de costos.
+
+        Costos DeepSeek V3.2 (abril 2026):
+          - input cache MISS: $0.27/M
+          - input cache HIT : $0.07/M  (caching automático en system idéntico)
+          - output         : $1.10/M
+        """
+        cache_hit = usage.get("cache_hit_tokens", 0)
+        cache_miss = usage.get("cache_miss_tokens", 0)
+        # Si DeepSeek devolvió tracking de cache, factura por buckets exactos.
+        # Si no (modelos viejos o respuesta sin metadata), usar prompt_tokens
+        # full price como fallback conservador.
+        if cache_hit + cache_miss > 0:
+            cost_in = cache_hit * 0.07e-6 + cache_miss * 0.27e-6
+        else:
+            cost_in = usage.get("prompt_tokens", 0) * 0.27e-6
         cost_out = usage.get("completion_tokens", 0) * 1.10e-6
         try:
             async with session_scope() as session:
@@ -275,6 +301,8 @@ def _coerce_common_mistakes(content: str) -> str:
 
     - sentiment: number → mapea a positive/neutral/negative según signo.
     - sentiment_score: string "0.5" → float.
+    - teams/suspensions/transfers: list[dict{name}] → list[str] (DeepSeek hábito).
+    - persons[].role: 'team'/'coach_staff' → 'other' (valores fuera del enum).
     """
     import json
 
@@ -301,6 +329,79 @@ def _coerce_common_mistakes(content: str) -> str:
             data["sentiment_score"] = float(score)
         except ValueError:
             data["sentiment_score"] = 0.0
+
+    # Coerce list[str] fields: DeepSeek frecuentemente devuelve [{"name": "X"}]
+    for key in ("teams", "suspensions", "transfers"):
+        val = data.get(key)
+        if isinstance(val, list):
+            coerced: list[str] = []
+            for item in val:
+                if isinstance(item, str):
+                    coerced.append(item)
+                elif isinstance(item, dict):
+                    name = item.get("name") or item.get("team") or item.get("player")
+                    if isinstance(name, str) and name:
+                        coerced.append(name)
+            data[key] = coerced
+
+    # persons[].role fuera del enum → 'other'
+    allowed_roles = {"player", "coach", "referee", "executive", "other"}
+    persons = data.get("persons")
+    if isinstance(persons, list):
+        for p in persons:
+            if isinstance(p, dict) and p.get("role") not in allowed_roles:
+                p["role"] = "other"
+
+    # injuries[]: coerce null → "" en player/team/impact + enum mapping severity
+    allowed_severity = {"out", "doubtful", "questionable", "probable", "active"}
+    injuries = data.get("injuries")
+    if isinstance(injuries, list):
+        for inj in injuries:
+            if not isinstance(inj, dict):
+                continue
+            for k in ("player", "team", "impact"):
+                if inj.get(k) is None:
+                    inj[k] = ""
+            sev = inj.get("severity")
+            if sev is None or sev not in allowed_severity:
+                inj["severity"] = "questionable"
+            # Además coerce dict→str en player/team (DeepSeek a veces)
+            for k in ("player", "team", "impact"):
+                v = inj.get(k)
+                if isinstance(v, dict):
+                    inj[k] = v.get("name") or v.get("value") or ""
+
+    # team_analysis.team_name omitido por LLM (schema_invalid recurrente).
+    # Cinturón + tirantes:
+    #   1. Si home_/away_team_analysis es dict y le falta team_name → ""
+    #   2. Si es None / faltante completo → crear estructura mínima vacía
+    #   3. Si es string (LLM colapsó la estructura) → wrap en dict mínimo
+    # El detector usa team_name solo para logging, no para decisiones, así
+    # que placeholders evitan el retry cycle (que cuesta tokens del quota).
+    # Estructura mínima alineada con `apuestas.schemas.llm.TeamAnalysis`
+    # (msgspec). Solo `team_name` es required; el resto tienen defaults pero
+    # los completamos explícitos para evitar surprises si el schema cambia.
+    _MIN_TA: dict = {
+        "team_name": "",
+        "narrative_momentum": "neutral",
+        "rest_days": 0,
+        "back_to_back": False,
+        "key_injuries": [],
+        "lineup_changes": [],
+        "recent_transfers_impact": [],
+        "coaching_change_flags": [],
+        "streak_home_away": None,
+        "streak_overall": None,
+        "player_streaks_notable": [],
+    }
+    for side in ("home_team_analysis", "away_team_analysis"):
+        ta = data.get(side)
+        if not isinstance(ta, dict):
+            data[side] = dict(_MIN_TA)
+            continue
+        for k, v in _MIN_TA.items():
+            if k not in ta:
+                ta[k] = v if not isinstance(v, list) else []
 
     return json.dumps(data, ensure_ascii=False)
 

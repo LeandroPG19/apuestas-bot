@@ -1,0 +1,37 @@
+groups:
+  - name: apuestas_calibration_rolling
+    interval: 5m
+    rules:
+      # Brier rolling 30d por sport.
+      # Fuente: apuestas_pick_brier{sport=~".+"} exported by obs/metrics.py.
+      - record: apuestas:brier_30d:rate_by_sport
+        expr: |
+          avg_over_time(apuestas_pick_brier[30d]) by (sport)
+
+      - record: apuestas:ece_30d:rate_by_sport
+        expr: |
+          avg_over_time(apuestas_pick_ece[30d]) by (sport)
+
+      - record: apuestas:bss_30d:rate_by_sport
+        expr: |
+          avg_over_time(apuestas_pick_bss[30d]) by (sport)
+
+      - record: apuestas:hit_rate_minus_implied:rate_by_sport
+        expr: |
+          avg_over_time(apuestas_hit_rate_minus_implied[30d]) by (sport)
+
+  - name: apuestas_emit_alerts
+    interval: 1m
+    rules:
+      - record: apuestas:alerts_new:rate_1h
+        expr: rate(apuestas_alerts_new_total[1h])
+      - record: apuestas:alerts_upgrade:rate_1h
+        expr: rate(apuestas_alerts_upgrade_total[1h])
+      - record: apuestas:alerts_skip:rate_1h
+        expr: rate(apuestas_alerts_skip_total[1h])
+
+  - name: apuestas_drift
+    interval: 5m
+    rules:
+      - record: apuestas:drift_events:rate_24h
+        expr: sum by (sport, market) (rate(apuestas_drift_detected_total[24h]))

@@ -13,7 +13,6 @@ from apuestas.betting.ev import (
     line_shopping,
 )
 from apuestas.betting.regional import RegionalRecommendation, compare_regions
-from apuestas.config import get_settings
 from apuestas.obs.logging import get_logger
 from apuestas.schemas.props import PropPrediction
 
@@ -30,6 +29,11 @@ class PropLineQuote:
 
 @dataclass(slots=True)
 class PropValueBet:
+    """Alerta de valor para un player prop.
+
+    Post-pivote 2026-04-23: sin stake/kelly (el bot ya no dimensiona stake).
+    """
+
     prediction: PropPrediction
     side: str  # 'over' | 'under'
     bookmaker: str
@@ -37,8 +41,6 @@ class PropValueBet:
     line: float
     edge: float
     ev: float
-    kelly_fraction_pct: float
-    stake_units: float
     regional: RegionalRecommendation | None = None
     conformal_passed: bool = True
     skip_reason: str | None = None
@@ -67,14 +69,10 @@ def evaluate_prop_side(
     side: str,
     line: float,
     quotes: list[BookmakerQuote],
-    bankroll: float | None = None,
     include_regional: bool = True,
     conformal_margin: float = 0.01,
 ) -> PropValueBet | None:
     """Pipeline end-to-end para UN side (over/under) de un prop."""
-    settings = get_settings()
-    bankroll = bankroll if bankroll is not None else settings.betting.default_bankroll_units
-
     p_point, p_low = _select_side_probability(prediction, side=side, line=line)
 
     # Conformal filter
@@ -83,12 +81,7 @@ def evaluate_prop_side(
     if p_low is not None and p_low <= implied_if_fair + conformal_margin:
         conformal_ok = False
 
-    offer = line_shopping(
-        quotes,
-        p_fair=p_point,
-        bankroll=bankroll,
-        exclude_sharp=True,
-    )
+    offer = line_shopping(quotes, p_fair=p_point, exclude_sharp=True)
     if offer is None:
         return PropValueBet(
             prediction=prediction,
@@ -98,8 +91,6 @@ def evaluate_prop_side(
             line=line,
             edge=0.0,
             ev=0.0,
-            kelly_fraction_pct=0.0,
-            stake_units=0.0,
             conformal_passed=conformal_ok,
             skip_reason="no_qualifying_offer",
         )
@@ -113,8 +104,6 @@ def evaluate_prop_side(
             line=line,
             edge=offer.edge,
             ev=offer.ev,
-            kelly_fraction_pct=0.0,
-            stake_units=0.0,
             conformal_passed=False,
             skip_reason="conformal_width",
         )
@@ -127,7 +116,6 @@ def evaluate_prop_side(
             outcome=f"{prediction.player_name}_{side}_{line}",
             p_fair=p_point,
             quotes=quotes,
-            bankroll=bankroll,
         )
 
     warnings = list(prediction.warnings)
@@ -139,8 +127,6 @@ def evaluate_prop_side(
         line=line,
         edge=offer.edge,
         ev=offer.ev,
-        kelly_fraction_pct=offer.kelly_fraction_pct,
-        stake_units=offer.stake_units,
         regional=regional_rec,
         conformal_passed=True,
         skip_reason=None,
@@ -152,7 +138,6 @@ def detect_prop_value_bets(
     prediction: PropPrediction,
     lines_offered: list[PropLineQuote],
     *,
-    bankroll: float | None = None,
     include_regional: bool = True,
 ) -> list[PropValueBet]:
     """Evalúa todas las líneas disponibles para un prop_code y jugador."""
@@ -183,7 +168,6 @@ def detect_prop_value_bets(
                 side="over",
                 line=line_data.line,
                 quotes=quotes_over,
-                bankroll=bankroll,
                 include_regional=include_regional,
             )
             if over_bet is not None:
@@ -195,7 +179,6 @@ def detect_prop_value_bets(
                 side="under",
                 line=line_data.line,
                 quotes=quotes_under,
-                bankroll=bankroll,
                 include_regional=include_regional,
             )
             if under_bet is not None:
@@ -228,7 +211,7 @@ def format_prop_telegram(bet: PropValueBet) -> str:
         f"📊 Modelo: μ={pred.mean:.2f} σ={pred.std:.2f}",
         f"P({bet.side}) = {pred.p_over if bet.side == 'over' else pred.p_under or 0:.3f}{ci_str}",
         "",
-        f"🎯 EV: *{bet.ev:+.2%}* · Kelly¼: {bet.kelly_fraction_pct:.2%} · Stake: {bet.stake_units:.2f}u",
+        f"🎯 EV: *{bet.ev:+.2%}* · Edge: {bet.edge:+.2%}",
     ]
     if bet.regional and bet.regional.cross_recommendation in {"MX", "US"}:
         lines.append(

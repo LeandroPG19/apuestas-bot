@@ -85,7 +85,9 @@ class MCPClient:
             msg = "mcp SDK requerido: pip install mcp"
             raise RuntimeError(msg) from exc
 
-        assert self._exit_stack is not None
+        if self._exit_stack is None:  # defensive: inicializado por __aenter__
+            msg = "MCPClient._exit_stack no inicializado — usar async with"
+            raise RuntimeError(msg)
 
         parts = shlex.split(cmd)
         params = StdioServerParameters(command=parts[0], args=parts[1:] if len(parts) > 1 else [])

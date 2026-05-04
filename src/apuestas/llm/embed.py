@@ -8,7 +8,7 @@ Cache en tabla `embeddings_cache` para evitar re-embed de contenido repetido
 from __future__ import annotations
 
 import hashlib
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import httpx
 import stamina
@@ -77,21 +77,103 @@ class EmbedClient:
             return False
         return resp.status_code == 200
 
+    # Cache in-memory: si TEI host no resuelve (ConnectError DNS) durante esta
+    # sesión, cae a sentence-transformers CPU local en vez de fallar.
+    _tei_unreachable: bool = False
+    _st_model: Any = None  # sentence-transformers lazy-loaded
+    _st_unavailable: bool = False  # circuit breaker: si ST también falla, usa zeros
+    _st_load_lock: Any = None  # asyncio.Lock lazy-init para serializar carga
+
     @stamina.retry(
-        on=(httpx.HTTPError, httpx.ReadTimeout),
-        attempts=3,
+        on=(httpx.ReadTimeout, httpx.RemoteProtocolError),
+        attempts=2,
         wait_initial=0.3,
-        wait_max=3.0,
+        wait_max=1.0,
     )
     async def _embed_raw(self, inputs: Sequence[str]) -> list[list[float]]:
-        """Llamada directa a TEI, sin cache."""
-        resp = await self.client.post("/embed", json={"inputs": list(inputs)})
+        """Llamada a TEI; si TEI offline, degrada a sentence-transformers CPU.
+
+        Orden:
+        1. TEI (GPU, preferido)
+        2. sentence-transformers CPU local con el mismo modelo BAAI/bge-m3
+           (~500 MB RAM, 200-500 ms/batch)
+        """
+        if EmbedClient._tei_unreachable:
+            return await self._embed_local(list(inputs))
+        try:
+            resp = await self.client.post("/embed", json={"inputs": list(inputs)})
+        except (httpx.ConnectError, httpx.ConnectTimeout) as exc:
+            logger.info("embed.tei_unreachable_fallback_cpu", error=str(exc)[:80])
+            EmbedClient._tei_unreachable = True
+            return await self._embed_local(list(inputs))
         resp.raise_for_status()
         data = resp.json()
         if not isinstance(data, list) or len(data) != len(inputs):
             msg = f"TEI returned unexpected shape: len={len(data)} vs expected {len(inputs)}"
             raise EmbedError(msg)
         return data
+
+    async def _embed_local(self, inputs: list[str]) -> list[list[float]]:
+        """Fallback CPU con sentence-transformers (BAAI/bge-m3). Lazy-load.
+
+        Circuit breaker: si carga O encode falla, flipea `_st_unavailable=True`
+        y el resto de la sesión devuelve zeros inmediatamente (evita reintentos
+        lentos que bloquean el catchup entero cuando CUDA OOM o disco corrupto).
+        """
+        import asyncio as _asyncio
+
+        # Circuit breaker ya activo → zeros directos
+        if EmbedClient._st_unavailable:
+            return [[0.0] * 1024 for _ in inputs]
+
+        if EmbedClient._st_model is None:
+            # Serializar el cold-start: 6 calls concurrentes pegando al
+            # _load_model causaban race condition (meta tensor error en 5/6).
+            if EmbedClient._st_load_lock is None:
+                EmbedClient._st_load_lock = _asyncio.Lock()
+            async with EmbedClient._st_load_lock:
+                if EmbedClient._st_unavailable:
+                    return [[0.0] * 1024 for _ in inputs]
+                if EmbedClient._st_model is None:
+                    try:
+                        from sentence_transformers import (
+                            SentenceTransformer,  # type: ignore[import-untyped]
+                        )
+                    except ImportError:
+                        logger.warning("embed.sentence_transformers_missing")
+                        EmbedClient._st_unavailable = True
+                        return [[0.0] * 1024 for _ in inputs]
+                    logger.info("embed.loading_st_cpu", model="BAAI/bge-m3")
+
+                    def _load_model() -> Any:
+                        # low_cpu_mem_usage=False evita el "meta tensor" error de
+                        # torch 2.x con modelos lazy init (BAAI/bge-m3 usa
+                        # XLM-RoBERTa base). El meta init se queda en meta device
+                        # y `model.to('cpu')` falla pidiendo `to_empty()`.
+                        return SentenceTransformer(
+                            "BAAI/bge-m3",
+                            device="cpu",
+                            trust_remote_code=True,
+                            model_kwargs={"low_cpu_mem_usage": False},
+                        )
+
+                    try:
+                        EmbedClient._st_model = await _asyncio.to_thread(_load_model)
+                    except Exception as exc:
+                        logger.warning("embed.st_load_failed_fallback_zeros", error=str(exc)[:120])
+                        EmbedClient._st_unavailable = True
+                        return [[0.0] * 1024 for _ in inputs]
+
+        def _encode() -> list[list[float]]:
+            arr = EmbedClient._st_model.encode(inputs, show_progress_bar=False)
+            return arr.tolist() if hasattr(arr, "tolist") else [list(v) for v in arr]
+
+        try:
+            return await _asyncio.to_thread(_encode)
+        except Exception as exc:
+            logger.warning("embed.st_encode_failed_fallback_zeros", error=str(exc)[:120])
+            EmbedClient._st_unavailable = True
+            return [[0.0] * 1024 for _ in inputs]
 
     async def embed(
         self,

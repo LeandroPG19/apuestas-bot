@@ -1,0 +1,83 @@
+name: API contract (schemathesis)
+
+on:
+  pull_request:
+    paths:
+      - 'src/apuestas/api/**'
+      - 'src/apuestas/schemas/**'
+      - 'pyproject.toml'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  schemathesis:
+    name: fuzz /openapi.json
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: apuestas
+          POSTGRES_PASSWORD: ci-password
+          POSTGRES_DB: apuestas
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U apuestas"
+          --health-interval 5s
+          --health-retries 20
+    env:
+      POSTGRES_HOST: localhost
+      POSTGRES_PORT: '5432'
+      POSTGRES_PASSWORD: ci-password
+      VALKEY_PASSWORD: ci-valkey
+      APUESTAS_ENV: test
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.14"
+
+      - name: Install project (extras api)
+        run: uv sync --extra api
+
+      - name: Run Alembic migrations
+        run: uv run alembic upgrade head
+
+      - name: Start API server (granian, background)
+        run: |
+          uv run granian --interface asgi --host 127.0.0.1 --port 8000 \
+            apuestas.api.main:app &
+          echo $! > /tmp/apuestas_api.pid
+          # Espera health
+          for i in {1..30}; do
+            if curl -sf http://127.0.0.1:8000/health > /dev/null; then
+              echo "API ready"
+              break
+            fi
+            sleep 1
+          done
+
+      - name: Install schemathesis
+        run: uv pip install "schemathesis==3.38.3"
+
+      - name: Fuzz /openapi.json
+        run: |
+          uv run schemathesis run \
+            --checks all \
+            --hypothesis-max-examples=100 \
+            --workers 4 \
+            --base-url http://127.0.0.1:8000 \
+            http://127.0.0.1:8000/openapi.json
+
+      - name: Stop API server
+        if: always()
+        run: |
+          if [ -f /tmp/apuestas_api.pid ]; then
+            kill "$(cat /tmp/apuestas_api.pid)" || true
+          fi

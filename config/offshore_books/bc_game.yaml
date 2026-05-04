@@ -1,0 +1,60 @@
+# BC.GAME — crypto-only sportsbook Curaçao
+book_slug: bc_game
+region: OFFSHORE
+base_url: https://bc.game/sports
+cloudflare_bypass: true
+rate_limit_seconds: 2.0
+deposit_methods:
+  - crypto_only  # BTC, ETH, USDT, BNB, SOL
+
+urls:
+  nba: "/basketball/nba"
+  mlb: "/baseball/mlb"
+  nfl: "/american-football/nfl"
+  nhl: "/ice-hockey/nhl"
+  liga_mx: "/soccer/liga-mx-mexico"
+  epl: "/soccer/premier-league"
+  champions: "/soccer/champions-league"
+  tennis: "/tennis"
+  boxing: "/boxing"
+  mma: "/mma-ufc"
+  esports: "/esports"
+  cricket: "/cricket"
+
+sport_to_code:
+  nba: nba
+  mlb: mlb
+  nfl: nfl
+  nhl: nhl
+  liga_mx: soccer
+  epl: soccer
+  champions: soccer
+  tennis: tennis
+  boxing: boxing
+  mma: mma
+  esports: esports
+  cricket: cricket
+
+selectors:
+  event_card: "div[data-event-id], li.match-item"
+  team_home: ".home-team-name, [data-home]"
+  team_away: ".away-team-name, [data-away]"
+  start_time: "time[datetime], .match-start"
+  market_section: "div.market-list, section.market-group"
+  market_name: ".market-name"
+  outcome_button: "button.selection, [data-outcome]"
+  outcome_label: ".outcome-name"
+  outcome_odds: ".decimal-odds"
+  outcome_line: "[data-line]"
+
+market_aliases:
+  "Winner": h2h
+  "Moneyline": h2h
+  "Match Winner": h2h
+  "Handicap": spreads
+  "Asian Handicap": asian_handicap
+  "Total": totals
+  "Total Goals": totals
+  "Both Teams to Score": btts
+  "Map 1 Winner": map_1_h2h   # eSports specific
+  "Map 2 Winner": map_2_h2h

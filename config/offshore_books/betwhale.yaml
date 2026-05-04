@@ -1,0 +1,58 @@
+# BetWhale.com — offshore Curaçao, bonos agresivos, soft-book nuevo 2023
+book_slug: betwhale
+region: OFFSHORE
+base_url: https://www.betwhale.com/sportsbook
+cloudflare_bypass: true
+rate_limit_seconds: 2.0
+
+urls:
+  nba: "/basketball/nba"
+  mlb: "/baseball/mlb"
+  nfl: "/football/nfl"
+  nhl: "/hockey/nhl"
+  liga_mx: "/soccer/mexico-primera-division"
+  epl: "/soccer/england-premier-league"
+  champions: "/soccer/champions-league"
+  tennis: "/tennis"
+  boxing: "/boxing"
+  mma: "/mma"
+  esports: "/esports"
+
+sport_to_code:
+  nba: nba
+  mlb: mlb
+  nfl: nfl
+  nhl: nhl
+  liga_mx: soccer
+  epl: soccer
+  champions: soccer
+  tennis: tennis
+  boxing: boxing
+  mma: mma
+  esports: esports
+
+selectors:
+  event_card: "div.event-row, article.event, div.match-card"
+  team_home: ".team-home, [data-home-team]"
+  team_away: ".team-away, [data-away-team]"
+  start_time: "time[datetime], .event-start-time"
+  market_section: "div.market, section[data-market]"
+  market_name: ".market-name, .market-title"
+  outcome_button: "button.odds-btn, .bet-button"
+  outcome_label: ".outcome-label"
+  outcome_odds: ".odds, .decimal-odds"
+  outcome_line: ".line, [data-handicap]"
+
+market_aliases:
+  "Moneyline": h2h
+  "Money Line": h2h
+  "Winner": h2h
+  "Point Spread": spreads
+  "Spread": spreads
+  "Total": totals
+  "Total Points": totals
+  "Total Goals": totals
+  "Over/Under": totals
+  "BTTS": btts
+  "Both Teams to Score": btts
+  "Double Chance": double_chance

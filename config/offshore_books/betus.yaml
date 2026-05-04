@@ -1,0 +1,60 @@
+# BetUS.com.pa — offshore Panama, soft-book, accesible MX+US sin VPN
+book_slug: betus
+region: OFFSHORE
+base_url: https://www.betus.com.pa/sportsbook
+cloudflare_bypass: true
+rate_limit_seconds: 1.5
+
+urls:
+  nba: "/basketball/nba"
+  mlb: "/baseball/mlb"
+  nfl: "/football/nfl"
+  nhl: "/hockey/nhl"
+  liga_mx: "/soccer/mexico/liga-mx"
+  epl: "/soccer/england/premier-league"
+  tennis: "/tennis"
+  boxing: "/boxing"
+  mma: "/mma"
+
+sport_to_code:
+  nba: nba
+  mlb: mlb
+  nfl: nfl
+  nhl: nhl
+  liga_mx: soccer
+  epl: soccer
+  tennis: tennis
+  boxing: boxing
+  mma: mma
+
+selectors:
+  event_card: "div.event-row, article.event-card, div.game-line"
+  team_home: ".home-team, .team-home-name, [data-home]"
+  team_away: ".away-team, .team-away-name, [data-away]"
+  start_time: "time[datetime], .event-time, .game-start"
+  market_section: "section.market-block, div.market-group"
+  market_name: ".market-title, h4.market-name"
+  outcome_button: "button.odds-btn, .outcome-pick"
+  outcome_label: ".outcome-name, .selection-label"
+  outcome_odds: ".odds-decimal, .odds-value"
+  outcome_line: "[data-line], .handicap-line"
+
+market_aliases:
+  "Moneyline": h2h
+  "Money Line": h2h
+  "Game Winner": h2h
+  "Point Spread": spreads
+  "Run Line": spreads
+  "Puck Line": spreads
+  "Asian Handicap": asian_handicap
+  "Total": totals
+  "Total Points": totals
+  "Total Goals": totals
+  "Over/Under": totals
+  "Both Teams to Score": btts
+  "Double Chance": double_chance
+
+ban_signals:
+  - "Access denied"
+  - "Attention Required! | Cloudflare"
+  - "Checking your browser"

@@ -1,0 +1,117 @@
+detail:
+  4:
+    draw_rate: 0.2988
+    draws: 75
+    league_name: Premier League
+    n: 251
+    threshold: 0.344
+  5:
+    draw_rate: 0.2601
+    draws: 97
+    league_name: Championship
+    n: 373
+    threshold: 0.299
+  6:
+    draw_rate: 0.2358
+    draws: 54
+    league_name: La Liga
+    n: 229
+    threshold: 0.271
+  7:
+    draw_rate: 0.2391
+    draws: 66
+    league_name: La Liga 2
+    n: 276
+    threshold: 0.275
+  8:
+    draw_rate: 0.2637
+    draws: 53
+    league_name: Bundesliga
+    n: 201
+    threshold: 0.303
+  9:
+    draw_rate: 0.2778
+    draws: 50
+    league_name: Bundesliga 2
+    n: 180
+    threshold: 0.319
+  10:
+    draw_rate: 0.2244
+    draws: 57
+    league_name: Serie A
+    n: 254
+    threshold: 0.258
+  11:
+    draw_rate: 0.2885
+    draws: 75
+    league_name: Serie B
+    n: 260
+    threshold: 0.332
+  12:
+    draw_rate: 0.2591
+    draws: 50
+    league_name: Ligue 1
+    n: 193
+    threshold: 0.298
+  13:
+    draw_rate: 0.3222
+    draws: 58
+    league_name: Ligue 2
+    n: 180
+    threshold: 0.35
+  14:
+    draw_rate: 0.2889
+    draws: 52
+    league_name: Eredivisie
+    n: 180
+    threshold: 0.332
+  15:
+    draw_rate: 0.266
+    draws: 50
+    league_name: Liga Portugal
+    n: 188
+    threshold: 0.306
+  16:
+    draw_rate: 0.2321
+    draws: 39
+    league_name: Belgium Pro A
+    n: 168
+    threshold: 0.267
+  17:
+    draw_rate: 0.3132
+    draws: 57
+    league_name: Turkey Super Lig
+    n: 182
+    threshold: 0.35
+  18:
+    draw_rate: 0.2778
+    draws: 40
+    league_name: Greece Super League
+    n: 144
+    threshold: 0.319
+  19:
+    draw_rate: 0.2587
+    draws: 37
+    league_name: Scotland Premier
+    n: 143
+    threshold: 0.298
+meta:
+  generated_at: '2026-04-24T21:18:35.366865+00:00'
+  window_days: 180
+thresholds:
+  4: 0.344
+  5: 0.299
+  6: 0.271
+  7: 0.275
+  8: 0.303
+  9: 0.319
+  10: 0.258
+  11: 0.332
+  12: 0.298
+  13: 0.35
+  14: 0.332
+  15: 0.306
+  16: 0.267
+  17: 0.35
+  18: 0.319
+  19: 0.298

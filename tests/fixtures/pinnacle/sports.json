@@ -1,0 +1,112 @@
+[
+  {
+    "featureOrder": -1,
+    "id": 1,
+    "isFeatured": false,
+    "isHidden": false,
+    "isSticky": false,
+    "matchupCount": 0,
+    "matchupCountSE": 0,
+    "name": "Badminton",
+    "primaryMarketType": "moneyline"
+  },
+  {
+    "featureOrder": -1,
+    "id": 2,
+    "isFeatured": false,
+    "isHidden": false,
+    "isSticky": false,
+    "matchupCount": 0,
+    "matchupCountSE": 0,
+    "name": "Bandy",
+    "primaryMarketType": "moneyline"
+  },
+  {
+    "featureOrder": 4,
+    "id": 3,
+    "isFeatured": true,
+    "isHidden": false,
+    "isSticky": false,
+    "matchupCount": 29,
+    "matchupCountSE": 29,
+    "name": "Baseball",
+    "primaryMarketType": "moneyline"
+  },
+  {
+    "featureOrder": 3,
+    "id": 4,
+    "isFeatured": true,
+    "isHidden": false,
+    "isSticky": false,
+    "matchupCount": 200,
+    "matchupCountSE": 196,
+    "name": "Basketball",
+    "primaryMarketType": "spread"
+  },
+  {
+    "featureOrder": -1,
+    "id": 5,
+    "isFeatured": false,
+    "isHidden": false,
+    "isSticky": false,
+    "matchupCount": 0,
+    "matchupCountSE": 0,
+    "name": "Beach Volleyball",
+    "primaryMarketType": "moneyline"
+  },
+  {
+    "featureOrder": -1,
+    "id": 6,
+    "isFeatured": false,
+    "isHidden": false,
+    "isSticky": false,
+    "matchupCount": 7,
+    "matchupCountSE": 5,
+    "name": "Boxing",
+    "primaryMarketType": "moneyline"
+  },
+  {
+    "featureOrder": -1,
+    "id": 7,
+    "isFeatured": false,
+    "isHidden": false,
+    "isSticky": false,
+    "matchupCount": 1,
+    "matchupCountSE": 1,
+    "name": "Chess",
+    "primaryMarketType": "moneyline"
+  },
+  {
+    "featureOrder": -1,
+    "id": 8,
+    "isFeatured": false,
+    "isHidden": false,
+    "isSticky": false,
+    "matchupCount": 8,
+    "matchupCountSE": 8,
+    "name": "Cricket",
+    "primaryMarketType": "moneyline"
+  },
+  {
+    "featureOrder": -1,
+    "id": 9,
+    "isFeatured": false,
+    "isHidden": false,
+    "isSticky": false,
+    "matchupCount": 0,
+    "matchupCountSE": 0,
+    "name": "Curling",
+    "primaryMarketType": "moneyline"
+  },
+  {
+    "featureOrder": -1,
+    "id": 10,
+    "isFeatured": false,
+    "isHidden": false,
+    "isSticky": false,
+    "matchupCount": 1,
+    "matchupCountSE": 1,
+    "name": "Darts",
+    "primaryMarketType": "moneyline"
+  }
+]

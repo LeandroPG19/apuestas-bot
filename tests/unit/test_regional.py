@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from apuestas.betting import regional as _reg
 from apuestas.betting.ev import BookmakerQuote
 from apuestas.betting.regional import (
     ALL_BOOKS,
@@ -15,18 +16,30 @@ from apuestas.betting.regional import (
     get_profile,
 )
 
+OFFSHORE_BOOKS = _reg.OFFSHORE_BOOKS
+
 
 def test_catalog_separation() -> None:
-    """Casas MX tienen region=MX; US → region=US."""
+    """MX → Region.MX, US → Region.US, offshore sharp → Region.OFFSHORE."""
     for slug, profile in MX_BOOKS.items():
         assert profile.region == Region.MX, f"{slug} mal clasificado"
         assert profile.segob_license is True
     for slug, profile in US_BOOKS.items():
         assert profile.region == Region.US, f"{slug} mal clasificado"
+    for slug, profile in OFFSHORE_BOOKS.items():
+        assert profile.region == Region.OFFSHORE, f"{slug} mal clasificado"
 
 
 def test_all_books_union() -> None:
-    assert set(ALL_BOOKS) == set(MX_BOOKS) | set(US_BOOKS)
+    assert set(ALL_BOOKS) == set(MX_BOOKS) | set(US_BOOKS) | set(OFFSHORE_BOOKS)
+
+
+def test_pinnacle_betfair_son_offshore_no_apostables() -> None:
+    """Pinnacle y Betfair NO deben aparecer en US_BOOKS (no apostables desde US regular)."""
+    assert "pinnacle" not in US_BOOKS
+    assert "betfair" not in US_BOOKS
+    assert "pinnacle" in OFFSHORE_BOOKS
+    assert "betfair" in OFFSHORE_BOOKS
 
 
 def test_get_profile_known_and_unknown() -> None:
@@ -67,7 +80,7 @@ def test_find_best_regional_offer_mx() -> None:
         BookmakerQuote(bookmaker="draftkings", odds=2.00),
         BookmakerQuote(bookmaker="fanduel", odds=1.96),
     ]
-    result = find_best_regional_offer(quotes, p_fair=0.58, bankroll=1000, region=Region.MX)
+    result = find_best_regional_offer(quotes, p_fair=0.58, region=Region.MX)
     assert result.best_offer is not None
     assert result.best_offer.bookmaker == "strendus"
     assert result.profile is not None
@@ -76,7 +89,7 @@ def test_find_best_regional_offer_mx() -> None:
 
 def test_find_best_regional_offer_no_qualifying() -> None:
     quotes = [BookmakerQuote(bookmaker="caliente", odds=1.50)]  # odds bajo min
-    result = find_best_regional_offer(quotes, p_fair=0.80, bankroll=1000, region=Region.MX)
+    result = find_best_regional_offer(quotes, p_fair=0.80, region=Region.MX)
     # El evaluador puede rechazar por EV/odds range
     if result.best_offer is None:
         assert True  # aceptable
@@ -95,7 +108,6 @@ def test_compare_regions_recommends_mx_when_better() -> None:
         outcome="home",
         p_fair=0.58,
         quotes=quotes,
-        bankroll=1000,
     )
     assert rec.cross_recommendation == "MX"
     assert rec.mx.best_offer is not None
@@ -113,7 +125,6 @@ def test_compare_regions_recommends_us_when_better() -> None:
         outcome="home",
         p_fair=0.55,
         quotes=quotes,
-        bankroll=1000,
     )
     assert rec.cross_recommendation == "US"
 
@@ -130,7 +141,6 @@ def test_compare_regions_tie() -> None:
         outcome="home",
         p_fair=0.58,
         quotes=quotes,
-        bankroll=1000,
     )
     # Diferencia de ajuste de tolerancia puede romper tie pero debe ser pequeño
     assert rec.cross_recommendation in ("tie", "MX", "US")
@@ -148,7 +158,6 @@ def test_compare_regions_neither_when_no_offers() -> None:
         outcome="home",
         p_fair=0.80,
         quotes=quotes,
-        bankroll=1000,
     )
     assert rec.cross_recommendation in ("MX", "neither")
 
@@ -164,7 +173,6 @@ def test_format_regional_summary_not_empty() -> None:
         outcome="home",
         p_fair=0.58,
         quotes=quotes,
-        bankroll=1000,
     )
     summary = format_regional_summary(rec)
     assert "🇲🇽" in summary
@@ -178,11 +186,15 @@ def test_pinnacle_and_circa_absent_from_mx_catalog() -> None:
     assert "circa" not in MX_BOOKS
 
 
-def test_stake_warning_when_exceeds_typical_limit() -> None:
-    """Si stake sugerido > 50% límite típico, warning correspondiente."""
-    # Con bankroll grande y edge brutal, Kelly excede typical_limit
-    quotes = [BookmakerQuote(bookmaker="codere", odds=3.0)]  # codere limit=2000
-    result = find_best_regional_offer(quotes, p_fair=0.80, bankroll=100_000, region=Region.MX)
-    if result.best_offer is not None:
-        # stake alto debería disparar warning
-        assert any("limit" in w for w in result.warnings) or result.best_offer.stake_units < 1000
+def test_low_limit_book_warning() -> None:
+    """Books con typical_limit_usd<1000 disparan warning informativo."""
+    # Algunos books MX soft tienen típicos bajos; el warning se emite si el book
+    # elegido tiene ese perfil (sin depender de stake/bankroll).
+    quotes = [BookmakerQuote(bookmaker="caliente", odds=1.95)]
+    result = find_best_regional_offer(quotes, p_fair=0.58, region=Region.MX)
+    if (
+        result.best_offer is not None
+        and result.profile is not None
+        and result.profile.typical_limit_usd < 1000
+    ):
+        assert any("low_limit" in w for w in result.warnings)

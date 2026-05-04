@@ -139,9 +139,19 @@ def fit_calibrated(
     conjunto separado del de calibración (recomendado para walk-forward).
     """
     n_per_class = min(int((y_cal == 0).sum()), int((y_cal == 1).sum()))
-    chosen = method or select_calibration_method(n_per_class)
+    # "auto" (o None) delega al selector heurístico para evitar que un caller
+    # imponga isotonic con muestras chicas (overfitting → ECE alto). Ver
+    # NBA shadow v20260429_1806: 371 cal samples + isotonic forzado → ECE 0.10.
+    if method in (None, "auto"):
+        chosen: CalibrationMethod = select_calibration_method(n_per_class)
+    else:
+        chosen = method
 
     if chosen == "venn_abers":
+        va = fit_venn_abers(base_estimator, X_cal, y_cal)
+        if va is not None:
+            logger.info("calibrate.venn_abers.ok", n_per_class=n_per_class)
+            return _VennAbersWrapper(base_estimator=base_estimator, va=va)
         logger.warning(
             "calibrate.venn_abers.fallback_to_sigmoid",
             reason="Venn-Abers requiere librería venn-abers; usamos sigmoid como fallback",
@@ -159,6 +169,46 @@ def fit_calibrated(
     return calibrated
 
 
+class _VennAbersWrapper:
+    """Wrapper sklearn-compat para VennAbers calibrator.
+
+    Combina un estimador base + VennAbers post-hoc. predict_proba devuelve
+    la probabilidad punto (media de p_lower/p_upper del VA predictor).
+    """
+
+    _estimator_type = "classifier"
+
+    def __init__(self, base_estimator: HasPredictProba, va: object) -> None:
+        self.base_estimator = base_estimator
+        self.va = va
+        import numpy as _np
+
+        self.classes_ = _np.array([0, 1])
+
+    def predict_proba(self, X: np.ndarray) -> np.ndarray:
+        raw = self.base_estimator.predict_proba(X)
+        if raw.ndim == 2:
+            p_raw_2d = raw  # (n, 2)
+        else:
+            p_raw_2d = np.column_stack([1.0 - raw, raw])
+        try:
+            # VennAbers.predict_proba espera (n, 2); devuelve (p_prime, p0_p1)
+            p_prime, _p0p1 = self.va.predict_proba(p_raw_2d)  # type: ignore[attr-defined]
+            # p_prime shape (n, 2): columnas = [p(0), p(1)] calibradas
+            p_arr = np.asarray(p_prime)
+            if p_arr.ndim == 2 and p_arr.shape[1] == 2:
+                return p_arr
+            # fallback si shape distinto
+            p_point = p_arr.ravel()
+            return np.column_stack([1.0 - p_point, p_point])
+        except Exception as exc:
+            logger.warning("venn_abers.predict_fail", error=str(exc)[:100])
+            return p_raw_2d
+
+    def predict(self, X: np.ndarray) -> np.ndarray:
+        return (self.predict_proba(X)[:, 1] >= 0.5).astype(int)
+
+
 def fit_venn_abers(
     base_estimator: HasPredictProba,
     X_cal: np.ndarray,
@@ -173,11 +223,10 @@ def fit_venn_abers(
 
     va = VennAbers()
     p_cal = base_estimator.predict_proba(X_cal)
-    if p_cal.ndim == 2:
-        p_cal_pos = p_cal[:, 1]
-    else:
-        p_cal_pos = p_cal
-    va.fit(p_cal_pos, y_cal)
+    if p_cal.ndim == 1:
+        p_cal = np.column_stack([1.0 - p_cal, p_cal])
+    # VennAbers.fit espera shape (n, 2) + y_cal (n,)
+    va.fit(p_cal, np.asarray(y_cal))
     return va
 
 
@@ -200,27 +249,34 @@ class ConformalClassifier:
         X_cal: np.ndarray,
         y_cal: np.ndarray,
     ) -> ConformalClassifier:
-        try:
-            from mapie.classification import MapieClassifier  # type: ignore[import-untyped]
-
-            self._mapie = MapieClassifier(
-                estimator=calibrated_estimator,
-                method="lac",
-                cv="prefit",
-            )
-            # MAPIE requiere fit sobre set de calibración
-            self._mapie.fit(X_cal, y_cal)  # type: ignore[attr-defined]
-            logger.info("conformal.mapie_ok")
-            return self
-        except (ImportError, Exception) as exc:
-            logger.warning("conformal.mapie_failed_fallback", error=str(exc))
-
-        # Fallback manual: non-conformity = 1 - p_true_label
+        # Siempre poblamos calibration_scores manuales: mapie 1.x cambió la
+        # API de predict y ya no expone intervalos sobre p_pos directamente
+        # (predict_set devuelve sets de clases). El fallback manual produce
+        # bandas válidas sobre la prob clase-1.
         p_cal = calibrated_estimator.predict_proba(X_cal)
-        # p_true_label per row
         p_true = p_cal[np.arange(len(y_cal)), y_cal.astype(int)]
         scores = 1.0 - p_true
         self._calibration_scores = np.sort(scores)
+
+        try:
+            # mapie 1.x: MapieClassifier renombrado → SplitConformalClassifier.
+            # cv='prefit' → flag prefit=True; method='lac' es default LAC.
+            from mapie.classification import (
+                SplitConformalClassifier,  # type: ignore[import-untyped]
+            )
+
+            self._mapie = SplitConformalClassifier(
+                estimator=calibrated_estimator,
+                confidence_level=1.0 - self.alpha,
+                prefit=True,
+            )
+            # API nueva: conformalize() en vez de fit() para split-conformal con prefit
+            self._mapie.conformalize(X_cal, y_cal)  # type: ignore[attr-defined]
+            logger.info("conformal.mapie_ok", api="split_conformal_v1", n_cal=len(scores))
+            return self
+        except Exception as exc:
+            logger.warning("conformal.mapie_failed_fallback", error=str(exc))
+
         logger.info("conformal.manual_fallback", n_cal=len(scores))
         return self
 
@@ -236,17 +292,8 @@ class ConformalClassifier:
         else:
             p_pos = p_point
 
-        if self._mapie is not None:
-            try:
-                _, intervals = self._mapie.predict(X, alpha=self.alpha)  # type: ignore[attr-defined]
-                # intervals shape: (n, 2, n_alphas) o (n, 2) — adaptar
-                intervals_arr = np.asarray(intervals)
-                if intervals_arr.ndim == 3:
-                    intervals_arr = intervals_arr[:, :, 0]
-                return p_pos, intervals_arr[:, 0], intervals_arr[:, 1]
-            except Exception as exc:
-                logger.warning("conformal.mapie_predict_failed", error=str(exc))
-
+        # mapie 1.x: predict_set() devuelve sets de clases, no intervalos
+        # sobre p_pos. Usamos siempre el fallback manual con calibration_scores.
         if self._calibration_scores is None:
             return p_pos, p_pos, p_pos
 

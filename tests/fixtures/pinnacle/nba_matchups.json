@@ -1,0 +1,542 @@
+[
+  {
+    "ageLimit": 0,
+    "altTeaser": false,
+    "featureOrder": -1,
+    "hasAltSpread": false,
+    "hasAltTotal": false,
+    "hasBetshare": false,
+    "hasLive": true,
+    "hasMarkets": true,
+    "id": 1628929883,
+    "isBetshareEnabled": false,
+    "isFeatured": false,
+    "isHighlighted": false,
+    "isLive": false,
+    "isPromoted": false,
+    "league": {
+      "ageLimit": 0,
+      "featureOrder": 0,
+      "group": "USA",
+      "id": 487,
+      "isFeatured": true,
+      "isHidden": false,
+      "isPromoted": false,
+      "isSticky": false,
+      "matchupCount": 38,
+      "matchupCountSE": 38,
+      "name": "NBA",
+      "sequence": 1,
+      "sport": {
+        "featureOrder": 3,
+        "id": 4,
+        "isFeatured": true,
+        "isHidden": false,
+        "isSticky": false,
+        "matchupCount": 196,
+        "matchupCountSE": 192,
+        "name": "Basketball",
+        "primaryMarketType": "spread"
+      }
+    },
+    "liveMode": null,
+    "parent": {
+      "hasMarkets": true,
+      "id": 1628888194,
+      "isLive": false,
+      "participants": [
+        {
+          "alignment": "home",
+          "name": "Detroit Pistons",
+          "order": 1,
+          "stats": [
+            {
+              "period": 0
+            }
+          ]
+        },
+        {
+          "alignment": "away",
+          "name": "Orlando Magic",
+          "order": 0,
+          "stats": [
+            {
+              "period": 0
+            }
+          ]
+        }
+      ],
+      "startTime": "2026-04-22T23:05:00Z",
+      "state": {}
+    },
+    "parentId": 1628888194,
+    "parlayRestriction": null,
+    "participants": [
+      {
+        "alignment": "neutral",
+        "id": 1628929884,
+        "name": "Over",
+        "order": 0,
+        "rotation": 33134
+      },
+      {
+        "alignment": "neutral",
+        "id": 1628929885,
+        "name": "Under",
+        "order": 0,
+        "rotation": 33135
+      }
+    ],
+    "periods": [
+      {
+        "cutoffAt": "2026-04-22T23:05:00Z",
+        "period": 0,
+        "status": "open"
+      }
+    ],
+    "rotation": 33134,
+    "special": {
+      "category": "Player Props",
+      "description": "Cade Cunningham Total Pts & Rebs & Asts"
+    },
+    "startTime": "2026-04-22T23:05:00Z",
+    "state": {},
+    "status": "pending",
+    "totalMarketCount": 1,
+    "type": "special",
+    "units": "Pts & Rebs & Asts",
+    "version": 581995402
+  },
+  {
+    "ageLimit": 0,
+    "altTeaser": false,
+    "featureOrder": -1,
+    "hasAltSpread": false,
+    "hasAltTotal": false,
+    "hasBetshare": false,
+    "hasLive": true,
+    "hasMarkets": true,
+    "id": 1628930243,
+    "isBetshareEnabled": false,
+    "isFeatured": false,
+    "isHighlighted": false,
+    "isLive": false,
+    "isPromoted": false,
+    "league": {
+      "ageLimit": 0,
+      "featureOrder": 0,
+      "group": "USA",
+      "id": 487,
+      "isFeatured": true,
+      "isHidden": false,
+      "isPromoted": false,
+      "isSticky": false,
+      "matchupCount": 38,
+      "matchupCountSE": 38,
+      "name": "NBA",
+      "sequence": 1,
+      "sport": {
+        "featureOrder": 3,
+        "id": 4,
+        "isFeatured": true,
+        "isHidden": false,
+        "isSticky": false,
+        "matchupCount": 196,
+        "matchupCountSE": 192,
+        "name": "Basketball",
+        "primaryMarketType": "spread"
+      }
+    },
+    "liveMode": null,
+    "parent": {
+      "hasMarkets": true,
+      "id": 1628488896,
+      "isLive": false,
+      "participants": [
+        {
+          "alignment": "home",
+          "name": "San Antonio Spurs",
+          "order": 1,
+          "stats": [
+            {
+              "period": 0
+            }
+          ]
+        },
+        {
+          "alignment": "away",
+          "name": "Portland Trail Blazers",
+          "order": 0,
+          "stats": [
+            {
+              "period": 0
+            }
+          ]
+        }
+      ],
+      "startTime": "2026-04-22T00:00:00Z",
+      "state": {}
+    },
+    "parentId": 1628488896,
+    "parlayRestriction": null,
+    "participants": [
+      {
+        "alignment": "neutral",
+        "id": 1628930244,
+        "name": "Over",
+        "order": 0,
+        "rotation": 33316
+      },
+      {
+        "alignment": "neutral",
+        "id": 1628930245,
+        "name": "Under",
+        "order": 0,
+        "rotation": 33317
+      }
+    ],
+    "periods": [
+      {
+        "cutoffAt": "2026-04-22T00:00:00Z",
+        "period": 0,
+        "status": "open"
+      }
+    ],
+    "rotation": 33316,
+    "special": {
+      "category": "Player Props",
+      "description": "Keldon Johnson Total Rebounds"
+    },
+    "startTime": "2026-04-22T00:00:00Z",
+    "state": {},
+    "status": "pending",
+    "totalMarketCount": 1,
+    "type": "special",
+    "units": "Rebounds",
+    "version": 581989436
+  },
+  {
+    "ageLimit": 0,
+    "altTeaser": false,
+    "featureOrder": -1,
+    "hasAltSpread": false,
+    "hasAltTotal": false,
+    "hasBetshare": false,
+    "hasLive": true,
+    "hasMarkets": true,
+    "id": 1628930198,
+    "isBetshareEnabled": false,
+    "isFeatured": false,
+    "isHighlighted": false,
+    "isLive": false,
+    "isPromoted": false,
+    "league": {
+      "ageLimit": 0,
+      "featureOrder": 0,
+      "group": "USA",
+      "id": 487,
+      "isFeatured": true,
+      "isHidden": false,
+      "isPromoted": false,
+      "isSticky": false,
+      "matchupCount": 38,
+      "matchupCountSE": 38,
+      "name": "NBA",
+      "sequence": 1,
+      "sport": {
+        "featureOrder": 3,
+        "id": 4,
+        "isFeatured": true,
+        "isHidden": false,
+        "isSticky": false,
+        "matchupCount": 196,
+        "matchupCountSE": 192,
+        "name": "Basketball",
+        "primaryMarketType": "spread"
+      }
+    },
+    "liveMode": null,
+    "parent": {
+      "hasMarkets": true,
+      "id": 1628888194,
+      "isLive": false,
+      "participants": [
+        {
+          "alignment": "home",
+          "name": "Detroit Pistons",
+          "order": 1,
+          "stats": [
+            {
+              "period": 0
+            }
+          ]
+        },
+        {
+          "alignment": "away",
+          "name": "Orlando Magic",
+          "order": 0,
+          "stats": [
+            {
+              "period": 0
+            }
+          ]
+        }
+      ],
+      "startTime": "2026-04-22T23:05:00Z",
+      "state": {}
+    },
+    "parentId": 1628888194,
+    "parlayRestriction": null,
+    "participants": [
+      {
+        "alignment": "neutral",
+        "id": 1628930199,
+        "name": "Over",
+        "order": 0,
+        "rotation": 33288
+      },
+      {
+        "alignment": "neutral",
+        "id": 1628930200,
+        "name": "Under",
+        "order": 0,
+        "rotation": 33289
+      }
+    ],
+    "periods": [
+      {
+        "cutoffAt": "2026-04-22T23:05:00Z",
+        "period": 0,
+        "status": "open"
+      }
+    ],
+    "rotation": 33288,
+    "special": {
+      "category": "Player Props",
+      "description": "Franz Wagner Total Rebounds"
+    },
+    "startTime": "2026-04-22T23:05:00Z",
+    "state": {},
+    "status": "pending",
+    "totalMarketCount": 1,
+    "type": "special",
+    "units": "Rebounds",
+    "version": 581990276
+  },
+  {
+    "ageLimit": 0,
+    "altTeaser": false,
+    "featureOrder": -1,
+    "hasAltSpread": false,
+    "hasAltTotal": false,
+    "hasBetshare": false,
+    "hasLive": true,
+    "hasMarkets": true,
+    "id": 1628930078,
+    "isBetshareEnabled": false,
+    "isFeatured": false,
+    "isHighlighted": false,
+    "isLive": false,
+    "isPromoted": false,
+    "league": {
+      "ageLimit": 0,
+      "featureOrder": 0,
+      "group": "USA",
+      "id": 487,
+      "isFeatured": true,
+      "isHidden": false,
+      "isPromoted": false,
+      "isSticky": false,
+      "matchupCount": 38,
+      "matchupCountSE": 38,
+      "name": "NBA",
+      "sequence": 1,
+      "sport": {
+        "featureOrder": 3,
+        "id": 4,
+        "isFeatured": true,
+        "isHidden": false,
+        "isSticky": false,
+        "matchupCount": 196,
+        "matchupCountSE": 192,
+        "name": "Basketball",
+        "primaryMarketType": "spread"
+      }
+    },
+    "liveMode": null,
+    "parent": {
+      "hasMarkets": true,
+      "id": 1628888192,
+      "isLive": false,
+      "participants": [
+        {
+          "alignment": "home",
+          "name": "Oklahoma City Thunder",
+          "order": 1,
+          "stats": [
+            {
+              "period": 0
+            }
+          ]
+        },
+        {
+          "alignment": "away",
+          "name": "Phoenix Suns",
+          "order": 0,
+          "stats": [
+            {
+              "period": 0
+            }
+          ]
+        }
+      ],
+      "startTime": "2026-04-23T01:30:00Z",
+      "state": {}
+    },
+    "parentId": 1628888192,
+    "parlayRestriction": null,
+    "participants": [
+      {
+        "alignment": "neutral",
+        "id": 1628930079,
+        "name": "Over",
+        "order": 0,
+        "rotation": 33208
+      },
+      {
+        "alignment": "neutral",
+        "id": 1628930080,
+        "name": "Under",
+        "order": 0,
+        "rotation": 33209
+      }
+    ],
+    "periods": [
+      {
+        "cutoffAt": "2026-04-23T01:30:00Z",
+        "period": 0,
+        "status": "open"
+      }
+    ],
+    "rotation": 33208,
+    "special": {
+      "category": "Player Props",
+      "description": "Isaiah Hartenstein Total Assists"
+    },
+    "startTime": "2026-04-23T01:30:00Z",
+    "state": {},
+    "status": "pending",
+    "totalMarketCount": 1,
+    "type": "special",
+    "units": "Assists",
+    "version": 582177498
+  },
+  {
+    "ageLimit": 0,
+    "altTeaser": false,
+    "featureOrder": -1,
+    "hasAltSpread": false,
+    "hasAltTotal": false,
+    "hasBetshare": false,
+    "hasLive": true,
+    "hasMarkets": true,
+    "id": 1628929730,
+    "isBetshareEnabled": false,
+    "isFeatured": false,
+    "isHighlighted": false,
+    "isLive": false,
+    "isPromoted": false,
+    "league": {
+      "ageLimit": 0,
+      "featureOrder": 0,
+      "group": "USA",
+      "id": 487,
+      "isFeatured": true,
+      "isHidden": false,
+      "isPromoted": false,
+      "isSticky": false,
+      "matchupCount": 38,
+      "matchupCountSE": 38,
+      "name": "NBA",
+      "sequence": 1,
+      "sport": {
+        "featureOrder": 3,
+        "id": 4,
+        "isFeatured": true,
+        "isHidden": false,
+        "isSticky": false,
+        "matchupCount": 196,
+        "matchupCountSE": 192,
+        "name": "Basketball",
+        "primaryMarketType": "spread"
+      }
+    },
+    "liveMode": null,
+    "parent": {
+      "hasMarkets": true,
+      "id": 1628888194,
+      "isLive": false,
+      "participants": [
+        {
+          "alignment": "home",
+          "name": "Detroit Pistons",
+          "order": 1,
+          "stats": [
+            {
+              "period": 0
+            }
+          ]
+        },
+        {
+          "alignment": "away",
+          "name": "Orlando Magic",
+          "order": 0,
+          "stats": [
+            {
+              "period": 0
+            }
+          ]
+        }
+      ],
+      "startTime": "2026-04-22T23:05:00Z",
+      "state": {}
+    },
+    "parentId": 1628888194,
+    "parlayRestriction": null,
+    "participants": [
+      {
+        "alignment": "neutral",
+        "id": 1628929732,
+        "name": "Over",
+        "order": 0,
+        "rotation": 33082
+      },
+      {
+        "alignment": "neutral",
+        "id": 1628929733,
+        "name": "Under",
+        "order": 0,
+        "rotation": 33083
+      }
+    ],
+    "periods": [
+      {
+        "cutoffAt": "2026-04-22T23:05:00Z",
+        "period": 0,
+        "status": "open"
+      }
+    ],
+    "rotation": 33082,
+    "special": {
+      "category": "Player Props",
+      "description": "Ausar Thompson Total Points"
+    },
+    "startTime": "2026-04-22T23:05:00Z",
+    "state": {},
+    "status": "pending",
+    "totalMarketCount": 1,
+    "type": "special",
+    "units": "Points",
+    "version": 582177498
+  }
+]

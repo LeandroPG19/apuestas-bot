@@ -21,10 +21,10 @@ PredictionQuality = Literal["accurate", "off", "very_off"]
 
 
 class InjuryEntry(msgspec.Struct, frozen=True, gc=False):
-    player: str
-    team: str
-    severity: Severity
-    impact: str
+    player: str = ""
+    team: str = ""
+    severity: Severity = "questionable"
+    impact: str = ""
 
 
 class LineupChange(msgspec.Struct, frozen=True, gc=False):
@@ -55,17 +55,20 @@ class StreakSummary(msgspec.Struct, frozen=True, gc=False):
 
 
 class TeamAnalysis(msgspec.Struct, frozen=True, gc=False):
+    """Análisis por equipo. Campos con defaults para tolerar respuestas LLM
+    donde no hay data (e.g. sin news/injuries disponibles)."""
+
     team_name: str
-    key_injuries: list[InjuryEntry]
-    lineup_changes: list[LineupChange]
-    recent_transfers_impact: list[TransferImpact]
-    coaching_change_flags: list[CoachingChangeFlag]
-    streak_home_away: StreakSummary | None
-    streak_overall: StreakSummary | None
-    player_streaks_notable: list[StreakSummary]
-    rest_days: int
-    back_to_back: bool
-    narrative_momentum: Momentum
+    narrative_momentum: Momentum = "neutral"
+    rest_days: int = 0
+    back_to_back: bool = False
+    key_injuries: list[InjuryEntry] = msgspec.field(default_factory=list)
+    lineup_changes: list[LineupChange] = msgspec.field(default_factory=list)
+    recent_transfers_impact: list[TransferImpact] = msgspec.field(default_factory=list)
+    coaching_change_flags: list[CoachingChangeFlag] = msgspec.field(default_factory=list)
+    streak_home_away: StreakSummary | None = None
+    streak_overall: StreakSummary | None = None
+    player_streaks_notable: list[StreakSummary] = msgspec.field(default_factory=list)
     # Solo en visitante:
     travel_km: float | None = None
     timezone_delta_hours: int | None = None
@@ -88,10 +91,10 @@ class WeatherSnapshot(msgspec.Struct, frozen=True, gc=False):
 
 
 class MatchupContext(msgspec.Struct, frozen=True, gc=False):
-    h2h_recent: list[str]
-    h2h_at_venue: list[str]
-    venue_factors: VenueFactors | None
-    weather: WeatherSnapshot | None
+    h2h_recent: list[str] = msgspec.field(default_factory=list)
+    h2h_at_venue: list[str] = msgspec.field(default_factory=list)
+    venue_factors: VenueFactors | None = None
+    weather: WeatherSnapshot | None = None
     referee_or_umpire_notes: str = ""
 
 
@@ -100,12 +103,12 @@ class PreMatchAnalysis(msgspec.Struct, frozen=True, gc=False):
 
     home_team_analysis: TeamAnalysis
     away_team_analysis: TeamAnalysis
-    matchup_context: MatchupContext
-    contradictions_found: list[str]
-    line_movement_assessment: LineAssessment
-    overall_edge_direction: EdgeDirection
-    confidence_in_analysis: Confidence
-    summary_es: str
+    summary_es: str = ""  # opcional: DeepSeek a veces no lo genera en primera respuesta
+    matchup_context: MatchupContext = msgspec.field(default_factory=MatchupContext)
+    contradictions_found: list[str] = msgspec.field(default_factory=list)
+    line_movement_assessment: LineAssessment = "unknown"
+    overall_edge_direction: EdgeDirection = "neutral"
+    confidence_in_analysis: Confidence = "low"
 
 
 class NERPerson(msgspec.Struct, frozen=True, gc=False):
@@ -115,13 +118,13 @@ class NERPerson(msgspec.Struct, frozen=True, gc=False):
 
 
 class NERExtraction(msgspec.Struct, frozen=True, gc=False):
-    persons: list[NERPerson]
-    teams: list[str]
-    injuries: list[InjuryEntry]
-    suspensions: list[str]
-    transfers: list[str]
-    sentiment: Literal["positive", "neutral", "negative"]
-    sentiment_score: float  # -1..+1
+    persons: list[NERPerson] = msgspec.field(default_factory=list)
+    teams: list[str] = msgspec.field(default_factory=list)
+    injuries: list[InjuryEntry] = msgspec.field(default_factory=list)
+    suspensions: list[str] = msgspec.field(default_factory=list)
+    transfers: list[str] = msgspec.field(default_factory=list)
+    sentiment: Literal["positive", "neutral", "negative"] = "neutral"
+    sentiment_score: float = 0.0
 
 
 class PostMortemNarrative(msgspec.Struct, frozen=True, gc=False):

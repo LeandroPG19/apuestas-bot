@@ -46,8 +46,12 @@ data/
 exports/*.parquet
 exports/*.csv
 exports/*.json
+exports/fiscal/
+!exports/.gitkeep
 backups/*.dump
+backups/*.sql
 backups/*.sql.gz
+!backups/.gitkeep
 
 # Reportes generados
 reports/backtests/*.html
@@ -76,3 +80,27 @@ logs/
 
 # Estado local
 .apuestas-state/
+
+# Artefactos runtime no versionados
+catboost_info/
+.claude/
+!.claude/skills/
+apuestas.config/
+capture/systemd/
+backups/legacy_bankroll/
+backups/20*/
+artifacts/
+reports/notebooks/*.ipynb
+
+# MLflow tracking DB local
+mlflow.db
+mlflow.db-journal
+mlflow.db-wal
+mlflow.db-shm
+
+# Mypy/ruff caches por si el OS dejó residuos
+.mypy_cache/
+.ruff_cache/
+
+# Sistemas operativos
+Thumbs.db

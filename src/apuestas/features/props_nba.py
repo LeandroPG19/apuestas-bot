@@ -11,6 +11,8 @@ Output: DataFrame con features para train_props.py por prop_code.
 
 from __future__ import annotations
 
+from typing import Any
+
 import polars as pl
 
 from apuestas.features.common import rolling_mean_prev
@@ -42,14 +44,34 @@ def minutes_projection(
         value="minutes_played",
         windows=[5, 10, 20],
     )
-    # Ajuste si teammate lesionado (roster injury → minutes up)
+    # Ajuste si teammate lesionado: consulta `injury_status_by_player` (dict
+    # player_id → "out"|"doubtful"|"questionable") para derivar boost.
+    # Factor empírico: 1.0 (baseline) + 0.03 por titular OUT mismo equipo
+    # (reasignación de usage → +2-4 min proyectados).
     if injury_status_by_player:
+        # Precomputar por team_id: cuántos players status=out|doubtful
+        out_counts: dict[int, int] = {}
+        # player_logs trae team_id y player_id por fila; reduce a player→team
+        player_to_team: dict[int, int] = {}
+        for row in player_logs.select(["player_id", "team_id"]).unique().iter_rows(named=True):
+            player_to_team[int(row["player_id"])] = int(row["team_id"])
+        for pid, status in injury_status_by_player.items():
+            if status in ("out", "doubtful"):
+                team = player_to_team.get(int(pid))
+                if team is not None:
+                    out_counts[team] = out_counts.get(team, 0) + 1
+
+        def _factor(tid: Any) -> float:
+            try:
+                n_out = out_counts.get(int(tid), 0)
+            except (TypeError, ValueError):  # fmt: skip
+                return 1.0
+            # +3% por cada jugador out, cap a +15% (5 out = roster diezmado)
+            return 1.0 + min(n_out * 0.03, 0.15)
+
         result = result.with_columns(
             pl.col("team_id")
-            .map_elements(
-                lambda tid: 1.0,  # placeholder; en prod consulta players OUT del team
-                return_dtype=pl.Float64,
-            )
+            .map_elements(_factor, return_dtype=pl.Float64)
             .alias("teammate_out_factor")
         )
     else:

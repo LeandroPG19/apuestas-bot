@@ -1,0 +1,52 @@
+# Winpot.com.mx — SEGOB MX regulado, Codere Group, desde 2019
+book_slug: winpot
+region: MX
+segob_license: true
+base_url: https://www.winpot.com.mx/apuestas
+cloudflare_bypass: true  # Winpot usa protección Cloudflare
+rate_limit_seconds: 2.0
+
+urls:
+  liga_mx: "/futbol/mexico/liga-mx"
+  liga_expansion: "/futbol/mexico/liga-expansion"
+  nba: "/baloncesto/nba"
+  mlb: "/beisbol/mlb"
+  nfl: "/futbol-americano/nfl"
+  champions: "/futbol/champions-league"
+  tennis: "/tenis"
+  boxing: "/boxeo"
+
+sport_to_code:
+  liga_mx: soccer
+  liga_expansion: soccer
+  nba: nba
+  mlb: mlb
+  nfl: nfl
+  champions: soccer
+  tennis: tennis
+  boxing: boxing
+
+selectors:
+  event_card: "div[data-testid='event-card'], .event-item, article.match-row"
+  team_home: "[data-home-team], .team-home-name"
+  team_away: "[data-away-team], .team-away-name"
+  start_time: "time[datetime], .event-start-time"
+  market_section: "section[data-market], div.market-block"
+  market_name: ".market-title, [data-testid='market-name']"
+  outcome_button: "button[data-outcome], .odds-button"
+  outcome_label: ".outcome-label"
+  outcome_odds: ".odds-value"
+  outcome_line: "[data-handicap]"
+
+market_aliases:
+  "Ganador": h2h
+  "1X2": h2h
+  "Resultado Final": h2h
+  "Ganador del Partido": h2h
+  "Hándicap": spreads
+  "Handicap Asiático": asian_handicap
+  "Total": totals
+  "Más/Menos": totals
+  "Total de Goles": totals
+  "Ambos Equipos Anotan": btts
+  "Doble Oportunidad": double_chance

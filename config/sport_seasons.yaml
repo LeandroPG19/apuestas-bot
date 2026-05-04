@@ -1,0 +1,29 @@
+# Ventanas activas por deporte (Gap 9 / A12).
+# Formato: month_start..month_end (1-12). Múltiples rangos si el deporte tiene
+# temporadas split (ej. tennis con grand slams todo el año en ventanas).
+# El detector consulta `is_sport_active(sport)` antes de emitir picks.
+# Dates son en UTC; el cálculo ignora el año.
+
+nba:
+  - {start_month: 10, end_month: 6}  # Oct-Jun (regular + playoffs + finals)
+
+nfl:
+  - {start_month: 9, end_month: 2}   # Sep-Feb (incluye Super Bowl)
+
+mlb:
+  - {start_month: 3, end_month: 11}  # Mar-Nov (regular + postseason)
+
+nhl:
+  - {start_month: 10, end_month: 6}  # Oct-Jun
+
+soccer:
+  - {start_month: 1, end_month: 12}  # Ligas globales todo el año
+
+tennis:
+  - {start_month: 1, end_month: 12}  # Tour ATP/WTA todo el año
+
+boxing:
+  - {start_month: 1, end_month: 12}
+
+mma:
+  - {start_month: 1, end_month: 12}

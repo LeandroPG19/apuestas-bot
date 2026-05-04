@@ -1,0 +1,49 @@
+# CampoBet.mx — SEGOB MX regulado, 2022+
+book_slug: campobet
+region: MX
+segob_license: true
+base_url: https://campobet.mx/apuestas-deportivas
+cloudflare_bypass: true
+rate_limit_seconds: 2.0
+
+urls:
+  liga_mx: "/futbol/mexico/liga-mx"
+  liga_expansion: "/futbol/mexico/liga-expansion-mx"
+  nba: "/basquet/nba"
+  mlb: "/beisbol/mlb"
+  nfl: "/futbol-americano/nfl"
+  champions: "/futbol/uefa-champions-league"
+  tennis: "/tenis"
+  boxing: "/boxeo"
+
+sport_to_code:
+  liga_mx: soccer
+  liga_expansion: soccer
+  nba: nba
+  mlb: mlb
+  nfl: nfl
+  champions: soccer
+  tennis: tennis
+  boxing: boxing
+
+selectors:
+  event_card: ".event-row, article.match-card"
+  team_home: ".home-team, [data-team-home]"
+  team_away: ".away-team, [data-team-away]"
+  start_time: "time, .event-time"
+  market_section: "div.market, section.market-group"
+  market_name: ".market-title"
+  outcome_button: "button.odds, .selection-odds"
+  outcome_label: ".outcome-text"
+  outcome_odds: ".odds-number"
+  outcome_line: ".handicap"
+
+market_aliases:
+  "1X2": h2h
+  "Ganador del Partido": h2h
+  "Ganador": h2h
+  "Hándicap": spreads
+  "Total": totals
+  "Más/Menos": totals
+  "Total de Goles": totals
+  "Ambos Anotan": btts

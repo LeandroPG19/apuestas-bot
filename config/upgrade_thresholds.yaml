@@ -1,0 +1,59 @@
+# Umbrales por deporte para decidir cuándo una alerta existente debe
+# re-emitirse como "upgrade" (mismo (match, market, line, outcome) con
+# odds/EV estrictamente mejores) vs "skip" (ruido de mercado).
+#
+# Fuente de los números: plan §4.4. NBA/NFL usan líneas granulares
+# (0.01-0.10 decimal) y retraso bajo; MLB/NHL tienen más ruido de mercado
+# por liquidez menor → umbrales más estrictos. Soccer usa 3-way (mayor
+# sensibilidad al blend vs Pinnacle).
+#
+# Campos:
+#   ev_delta_min_pp    → ΔEV mínimo en puntos porcentuales para upgrade.
+#   odds_delta_min     → Δodds decimal mínimo (avoid round-up noise).
+#   cooldown_min       → minutos de bloqueo tras la última emisión/upgrade
+#                        para el mismo pick (evita flip-flops).
+
+defaults:
+  ev_delta_min_pp: 2.0
+  odds_delta_min: 0.10
+  cooldown_min: 45
+
+nba:
+  ev_delta_min_pp: 1.5
+  odds_delta_min: 0.07
+  cooldown_min: 30
+
+nfl:
+  ev_delta_min_pp: 2.0
+  odds_delta_min: 0.10
+  cooldown_min: 60
+
+mlb:
+  ev_delta_min_pp: 2.5
+  odds_delta_min: 0.12
+  cooldown_min: 60
+
+soccer:
+  ev_delta_min_pp: 2.0
+  odds_delta_min: 0.08
+  cooldown_min: 45
+
+nhl:
+  ev_delta_min_pp: 2.0
+  odds_delta_min: 0.10
+  cooldown_min: 45
+
+tennis:
+  ev_delta_min_pp: 2.5
+  odds_delta_min: 0.10
+  cooldown_min: 30
+
+boxing:
+  ev_delta_min_pp: 3.0
+  odds_delta_min: 0.15
+  cooldown_min: 60
+
+mma:
+  ev_delta_min_pp: 3.0
+  odds_delta_min: 0.15
+  cooldown_min: 60

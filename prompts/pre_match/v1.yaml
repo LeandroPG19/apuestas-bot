@@ -7,7 +7,8 @@ description: |
 grammar: pre_match_analysis
 schema: apuestas.schemas.llm.PreMatchAnalysis
 temperature: 0.1
-max_tokens: 2048
+# Output medido prod: avg 222 / max 560 tok. Cap 768 con margen 37%.
+max_tokens: 768
 
 system: |
   Eres analista deportivo senior. Tu rol es estrictamente cualitativo:
@@ -28,6 +29,10 @@ system: |
   5. contradictions_found: lista explícita de claims conflictivos entre fuentes.
   6. summary_es: máximo 3 oraciones en español, enfocado en factores NO obvios.
   7. NO menciones probabilidades numéricas ni cuotas.
+  8. team_name OBLIGATORIO en cada team_analysis: copia EXACTAMENTE el valor
+     recibido en el input — `home_team_analysis.team_name` debe ser literal
+     "{home_name}" y `away_team_analysis.team_name` debe ser literal "{away_name}".
+     Si omites estos campos el JSON será rechazado por schema_invalid.
 
 user_template: |
   PARTIDO: {home_name} (LOCAL) vs {away_name} (VISITANTE)

@@ -47,8 +47,212 @@ class PromotionDecision:
     n_picks: int
 
 
+def _ensure_mlflow_tracking_uri() -> None:
+    """Asegura que mlflow use el server HTTP, no filesystem local.
+
+    Si MLFLOW_TRACKING_URI no está en env, defaults a localhost:5000.
+    Defensivo: previene el bug donde un script sin env vars cae a ./mlruns.
+    """
+    import os as _os
+
+    import mlflow as _mlflow
+
+    uri = _os.environ.get("MLFLOW_TRACKING_URI") or "http://localhost:5000"
+    current = _mlflow.get_tracking_uri()
+    # Si no es http (es filesystem o none), force set
+    if not str(current).startswith("http"):
+        _mlflow.set_tracking_uri(uri)
+
+    # Asegurar S3 endpoint para MinIO.
+    # Si el valor tiene hostname Docker interno (minio:9000) y estamos fuera de Docker,
+    # reemplazar con localhost para que el proceso local pueda conectar al puerto mapeado.
+    s3_url = _os.environ.get("MLFLOW_S3_ENDPOINT_URL", "")
+    if not s3_url or "minio:9000" in s3_url or "minio:9001" in s3_url:
+        _os.environ["MLFLOW_S3_ENDPOINT_URL"] = "http://localhost:9000"
+    if not _os.environ.get("AWS_ACCESS_KEY_ID"):
+        _os.environ["AWS_ACCESS_KEY_ID"] = "minio-admin"
+    if not _os.environ.get("AWS_SECRET_ACCESS_KEY"):
+        _os.environ["AWS_SECRET_ACCESS_KEY"] = "change-me-minio-password"  # noqa: S105
+
+
 def _mlflow_client() -> MlflowClient:
+    _ensure_mlflow_tracking_uri()
     return MlflowClient()
+
+
+# Cache in-memory de modelos production. Key: (sport_code, market).
+# Value: (ModelInfo, loaded_object, loaded_at). TTL 1h.
+_PRODUCTION_CACHE: dict[tuple[str, str], tuple[ModelInfo, Any, datetime]] = {}
+_PRODUCTION_TTL_SECONDS = 3600
+
+
+_MARKET_TO_MODEL_SUFFIX: dict[str, tuple[str, ...]] = {
+    # h2h/moneyline → modelos *_moneyline o *_h2h o *_league_X (soccer)
+    "h2h": ("moneyline", "h2h", "1x2", "league_"),
+    "moneyline": ("moneyline", "h2h", "1x2", "league_"),
+    "1x2": ("moneyline", "h2h", "1x2", "league_"),
+    # spreads/handicap → modelos *_spread, *_ats (NFL), *_runline (MLB), *_puckline (NHL)
+    "spreads": ("spread", "ats", "runline", "puckline", "ah", "handicap"),
+    "handicap": ("spread", "ats", "runline", "puckline", "ah", "handicap"),
+    "ah": ("spread", "ats", "runline", "puckline", "ah", "handicap"),
+    "runline": ("runline", "spread"),
+    "puckline": ("puckline", "spread"),
+    # totals → modelos *_total
+    "totals": ("total",),
+    "total": ("total",),
+    "over_under": ("total",),
+}
+
+
+def _market_matches_model(market: str, model_name: str) -> bool:
+    """¿El nombre del modelo es compatible con el market solicitado?"""
+    name_lower = model_name.lower()
+    suffixes = _MARKET_TO_MODEL_SUFFIX.get(market.lower())
+    if not suffixes:
+        # Market desconocido — permisivo (legacy behavior)
+        return True
+    return any(suf in name_lower for suf in suffixes)
+
+
+async def load_production_model(
+    sport_code: str,
+    market: str = "h2h",
+    *,
+    model_name_pattern: str | None = None,
+) -> tuple[ModelInfo, Any] | None:
+    """Carga el modelo `stage='production'` más reciente para (sport, market).
+
+    Gap #3: elimina el hardcode `ensemble_v1/v1` sin modelo real. Si no hay
+    modelo production, retorna None y el caller cae a `pinnacle_proxy`.
+
+    Bug fix 2026-04-27: el filtro previo NO consideraba `market` y devolvía
+    cualquier modelo de ese sport. Para MLB spreads cargaba `mlb_moneyline` —
+    probabilidad de ganar el partido, NO de cubrir el spread → 12 picks MLB
+    spreads con overconfidence +33pp y ROI -68%. Fix: filtrar `model_name`
+    por sufijo compatible con el market (h2h vs spread vs total).
+
+    Cache in-memory 1h para no golpear MLflow en cada pick.
+    """
+    _ensure_mlflow_tracking_uri()
+    name_pattern = model_name_pattern or f"%{sport_code}%"
+    key = (sport_code, market, name_pattern)
+    now = datetime.now(tz=UTC)
+    cached = _PRODUCTION_CACHE.get(key)
+    if cached is not None:
+        info, obj, loaded_at = cached
+        if (now - loaded_at).total_seconds() < _PRODUCTION_TTL_SECONDS:
+            return info, obj
+    async with session_scope() as session:
+        result = await session.execute(
+            text(
+                """
+                SELECT mlflow_run_id, model_name, model_version, sport_code,
+                       stage, promoted_at, performance_30d
+                FROM model_registry_meta
+                WHERE stage = 'production'
+                  AND sport_code = :sport
+                  AND model_name LIKE :np
+                ORDER BY promoted_at DESC NULLS LAST
+                """
+            ),
+            {"sport": sport_code, "np": name_pattern},
+        )
+        rows = result.all()
+
+    # Filtrar por market_type compatible con model_name
+    matched_rows = [r for r in rows if _market_matches_model(market, r.model_name)]
+    row = matched_rows[0] if matched_rows else None
+    if row is None:
+        logger.info(
+            "registry.no_production_model",
+            sport=sport_code,
+            market=market,
+            n_models_for_sport=len(rows),
+        )
+        return None
+
+    info = ModelInfo(
+        run_id=row.mlflow_run_id,
+        model_name=row.model_name,
+        model_version=row.model_version,
+        sport_code=row.sport_code,
+        stage=row.stage,
+        promoted_at=row.promoted_at,
+        performance=dict(row.performance_30d or {}),
+    )
+
+    loaded: Any | None = None
+    try:
+        import mlflow.sklearn  # type: ignore[import-untyped]
+
+        model_uri = f"runs:/{info.run_id}/model"
+        # `mlflow.sklearn.load_model` es sync; envolvemos en to_thread.
+        import asyncio as _asyncio
+
+        loaded = await _asyncio.to_thread(mlflow.sklearn.load_model, model_uri)
+    except Exception as exc:
+        logger.info(
+            "registry.mlflow_load_fallback",
+            run_id=info.run_id,
+            error=str(exc)[:120],
+        )
+        # Fallback: el artifact se guardó via log_artifact (no log_model), así
+        # que falta MLmodel metadata. Descargar pkl directamente y cloudpickle.load.
+        try:
+            from pathlib import Path as _Path
+
+            import cloudpickle as _cp  # type: ignore[import-untyped]
+
+            path = await _asyncio.to_thread(
+                download_artifacts, run_id=info.run_id, artifact_path="model"
+            )
+            # Buscar el primer .pkl dentro del dir model/
+            pkl_files = list(_Path(path).glob("*.pkl"))
+            if not pkl_files:
+                logger.warning("registry.no_pkl_in_artifacts", path=path[:80])
+                return None
+            with pkl_files[0].open("rb") as f:
+                loaded_raw = _cp.load(f)
+            # Distintos trainers guardan schemas distintos:
+            #   - {"estimator": sklearn_model, "conformal": ..., ...} (NBA/NFL/MLB trainers)
+            #   - {"model": ..., "config": ...} (soccer DC)
+            #   - modelo directo (casos legacy)
+            if isinstance(loaded_raw, dict):
+                if "estimator" in loaded_raw:
+                    loaded = loaded_raw  # keep full dict — caller destructures
+                elif "model" in loaded_raw:
+                    loaded = loaded_raw["model"]
+                else:
+                    loaded = loaded_raw
+            else:
+                loaded = loaded_raw
+            logger.info(
+                "registry.cloudpickle_fallback_ok",
+                run_id=info.run_id,
+                pkl=str(pkl_files[0])[-60:],
+            )
+        except Exception as exc2:
+            logger.warning(
+                "registry.load_model_failed",
+                run_id=info.run_id,
+                error=str(exc2)[:120],
+            )
+            return None
+
+    _PRODUCTION_CACHE[key] = (info, loaded, now)
+    logger.info(
+        "registry.production_model_loaded",
+        sport=sport_code,
+        market=market,
+        model_name=info.model_name,
+        version=info.model_version,
+    )
+    return info, loaded
+
+
+def clear_production_cache() -> None:
+    """Limpia el cache (útil para tests o tras promote manual)."""
+    _PRODUCTION_CACHE.clear()
 
 
 async def register_model(
@@ -60,6 +264,8 @@ async def register_model(
     performance: dict[str, Any] | None = None,
 ) -> None:
     """Alta en `model_registry_meta`. Idempotente por (mlflow_run_id)."""
+    import json as _json
+
     async with session_scope() as session:
         await session.execute(
             text(
@@ -68,7 +274,7 @@ async def register_model(
                   (mlflow_run_id, model_name, model_version, sport_code,
                    stage, promoted_at, performance_30d)
                 VALUES
-                  (:run_id, :name, :version, :sport, :stage, NOW(), :perf)
+                  (:run_id, :name, :version, :sport, :stage, NOW(), CAST(:perf AS jsonb))
                 ON CONFLICT (mlflow_run_id) DO UPDATE
                   SET stage = EXCLUDED.stage,
                       model_version = EXCLUDED.model_version,
@@ -81,7 +287,7 @@ async def register_model(
                 "version": datetime.now(tz=UTC).strftime("%Y%m%d_%H%M"),
                 "sport": sport_code,
                 "stage": stage,
-                "perf": performance or {},
+                "perf": _json.dumps(performance or {}),
             },
         )
     logger.info("registry.model_registered", run_id=run_id, name=model_name, stage=stage)

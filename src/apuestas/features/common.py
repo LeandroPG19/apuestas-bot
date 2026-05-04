@@ -345,3 +345,75 @@ def compute_target(
         )
     msg = f"Target kind desconocido: {kind}"
     raise ValueError(msg)
+
+
+def add_elo_features(
+    matches: pl.DataFrame,
+    *,
+    sport: str,
+    home_team_col: str = "home_team_id",
+    away_team_col: str = "away_team_id",
+    home_score_col: str = "home_score",
+    away_score_col: str = "away_score",
+    time_col: str = "start_time",
+) -> pl.DataFrame:
+    import os as _os
+
+    # Sprint 10 — ablation support: si APUESTAS_ELO_FEATURES_DISABLED=true,
+    # devolver DataFrame sin tocar (baseline para scripts/retrain_elo_ablation.py).
+    if _os.environ.get("APUESTAS_ELO_FEATURES_DISABLED", "false").lower() == "true":
+        return matches
+    """Añade Elo features al DataFrame de matches — Sprint 10 Fase 2.
+
+    Recorre matches en orden cronológico actualizando un EloBuilder. Cada
+    row recibe feature `elo_home`, `elo_away`, `elo_diff`, `elo_p_home`
+    CALCULADOS ANTES del match (anti-leakage: usa ratings pre-partido).
+
+    Args:
+        matches: polars DataFrame con al menos [id, home_team_col,
+                 away_team_col, home_score_col, away_score_col, time_col].
+        sport: 'nba', 'mlb', 'nfl', 'nhl', 'soccer', etc.
+
+    Returns:
+        Mismo DataFrame con columnas nuevas: elo_home, elo_away, elo_diff,
+        elo_p_home. Si el match no tiene scores (futuro), aplica features
+        con ratings actuales sin actualizar.
+    """
+    from apuestas.features.elo_builder import EloBuilder
+
+    builder = EloBuilder(sport=sport)
+    df_sorted = matches.sort(time_col)
+
+    elo_home_col: list[float] = []
+    elo_away_col: list[float] = []
+    elo_diff_col: list[float] = []
+    elo_p_home_col: list[float] = []
+
+    for row in df_sorted.iter_rows(named=True):
+        home_id = row.get(home_team_col)
+        away_id = row.get(away_team_col)
+        # Features ANTES del update (anti-leakage)
+        feats = builder.features_for_upcoming(str(home_id), str(away_id))
+        elo_home_col.append(feats["elo_home"])
+        elo_away_col.append(feats["elo_away"])
+        elo_diff_col.append(feats["elo_diff"])
+        elo_p_home_col.append(feats["elo_p_home"])
+        # Update SOLO si hay scores reales (entrenamiento histórico)
+        hs = row.get(home_score_col)
+        as_ = row.get(away_score_col)
+        if hs is not None and as_ is not None:
+            builder.update_match(
+                home=str(home_id),
+                away=str(away_id),
+                home_score=int(hs),
+                away_score=int(as_),
+            )
+
+    return df_sorted.with_columns(
+        [
+            pl.Series("elo_home", elo_home_col),
+            pl.Series("elo_away", elo_away_col),
+            pl.Series("elo_diff", elo_diff_col),
+            pl.Series("elo_p_home", elo_p_home_col),
+        ]
+    )

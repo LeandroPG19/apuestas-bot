@@ -1,0 +1,230 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "datasource": {"type": "prometheus", "uid": "prometheus"},
+        "enable": true,
+        "iconColor": "red",
+        "name": "Drift events",
+        "expr": "increase(apuestas_drift_detected_total[1m]) > 0",
+        "step": "1m",
+        "titleFormat": "Drift {{sport}}/{{market}}"
+      }
+    ]
+  },
+  "description": "Apuestas Bot Health — KPIs primarios post-pivote detector-puro.",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "id": 1,
+      "title": "Brier rolling 30d por sport",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "palette-classic"},
+          "thresholds": {
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "yellow", "value": 0.22},
+              {"color": "red", "value": 0.25}
+            ]
+          },
+          "unit": "none",
+          "max": 0.35,
+          "min": 0.0
+        }
+      },
+      "options": {"legend": {"displayMode": "table", "showLegend": true}},
+      "targets": [
+        {
+          "expr": "apuestas:brier_30d:rate_by_sport",
+          "legendFormat": "{{sport}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Brier Skill Score (BSS) — objetivo ≥ 0.03",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "steps": [
+              {"color": "red", "value": null},
+              {"color": "yellow", "value": 0.0},
+              {"color": "green", "value": 0.03}
+            ]
+          }
+        }
+      },
+      "targets": [
+        {
+          "expr": "apuestas:bss_30d:rate_by_sport",
+          "legendFormat": "{{sport}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "ECE rolling 30d — objetivo ≤ 0.05",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "yellow", "value": 0.05},
+              {"color": "red", "value": 0.08}
+            ]
+          },
+          "max": 0.15
+        }
+      },
+      "targets": [
+        {
+          "expr": "apuestas:ece_30d:rate_by_sport",
+          "legendFormat": "{{sport}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Hit rate − implied rate — objetivo ≥ +2pp",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "steps": [
+              {"color": "red", "value": null},
+              {"color": "yellow", "value": 0.0},
+              {"color": "green", "value": 0.02}
+            ]
+          }
+        }
+      },
+      "targets": [
+        {
+          "expr": "apuestas:hit_rate_minus_implied:rate_by_sport",
+          "legendFormat": "{{sport}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "Emit alerts (new/upgrade/skip) — últimas 6h",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 16},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [
+        {
+          "expr": "sum by (sport) (apuestas:alerts_new:rate_1h)",
+          "legendFormat": "new / {{sport}}",
+          "refId": "A"
+        },
+        {
+          "expr": "sum by (sport) (apuestas:alerts_upgrade:rate_1h)",
+          "legendFormat": "upgrade / {{sport}}",
+          "refId": "B"
+        },
+        {
+          "expr": "sum by (sport) (apuestas:alerts_skip:rate_1h)",
+          "legendFormat": "skip / {{sport}}",
+          "refId": "C"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "title": "Drift events últimas 24h por (sport, market)",
+      "type": "bargauge",
+      "gridPos": {"h": 8, "w": 6, "x": 12, "y": 16},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "options": {"displayMode": "lcd", "orientation": "horizontal"},
+      "targets": [
+        {
+          "expr": "apuestas:drift_events:rate_24h",
+          "legendFormat": "{{sport}}/{{market}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "title": "Last alert emit (watchdog 4h)",
+      "type": "stat",
+      "gridPos": {"h": 4, "w": 6, "x": 18, "y": 16},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {
+        "defaults": {
+          "unit": "dtdurations",
+          "thresholds": {
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "yellow", "value": 7200},
+              {"color": "red", "value": 14400}
+            ]
+          }
+        }
+      },
+      "targets": [
+        {
+          "expr": "time() - apuestas_last_alert_emit_timestamp_seconds",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "title": "Live scores updated (últimas 24h)",
+      "type": "stat",
+      "gridPos": {"h": 4, "w": 6, "x": 18, "y": 20},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [
+        {
+          "expr": "sum(increase(apuestas_live_scores_updated_total[24h]))",
+          "refId": "A"
+        }
+      ]
+    }
+  ],
+  "refresh": "1m",
+  "schemaVersion": 39,
+  "style": "dark",
+  "tags": ["apuestas", "detector-puro", "kpi"],
+  "templating": {
+    "list": [
+      {
+        "name": "sport",
+        "type": "query",
+        "datasource": {"type": "prometheus", "uid": "prometheus"},
+        "query": "label_values(apuestas_pick_brier, sport)",
+        "includeAll": true,
+        "multi": true
+      }
+    ]
+  },
+  "time": {"from": "now-24h", "to": "now"},
+  "timepicker": {},
+  "timezone": "",
+  "title": "Apuestas — Bot Health (KPIs primarios)",
+  "uid": "apuestas-bot-health",
+  "version": 1,
+  "weekStart": ""
+}

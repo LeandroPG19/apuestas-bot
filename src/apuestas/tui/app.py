@@ -29,6 +29,7 @@ from rich.align import Align
 from rich.panel import Panel
 from rich.text import Text
 from sqlalchemy import text
+from textual import work
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.command import DiscoveryHit, Hit, Hits, Provider
@@ -179,7 +180,7 @@ class HelpSidebar(Static):
 
     current_tab: reactive[str] = reactive("dash")
 
-    _content: dict[str, tuple[str, list[tuple[str, str]]]] = {
+    _help_map: dict[str, tuple[str, list[tuple[str, str]]]] = {
         "dash": (
             "Panel de control principal.",
             [
@@ -287,7 +288,7 @@ class HelpSidebar(Static):
     }
 
     def render(self) -> Panel:
-        title, rows = self._content.get(self.current_tab, ("Ayuda no disponible", []))
+        title, rows = self._help_map.get(self.current_tab, ("Ayuda no disponible", []))
         t = Text()
         t.append("\n  ", style="")
         t.append(title, style="bold cyan")
@@ -616,32 +617,39 @@ class TutorialScreen(ModalScreen[None]):
 
 
 async def _fetch_pick_detail(bet_id: int) -> dict[str, Any] | None:
-    """Trae TODO lo que se sabe de un pick: predicción, LLM, SHAP, odds, regional."""
+    """Trae todo lo que se sabe de una alerta: predicción, LLM, SHAP, odds.
+
+    Post-pivote: lee `pick_alerts` en vez de `bets`. Campos retirados
+    (stake_units, clv, pnl_units, is_paper) se omiten; la UI superior los
+    mostrará como n/d si faltan.
+    """
     async with session_scope() as s:
         row = (
             await s.execute(
                 text(
                     """
                     SELECT
-                        b.id AS bet_id, b.bookmaker, b.market, b.outcome, b.line,
-                        b.stake_units, b.odds_placed, b.status, b.placed_at,
-                        b.is_paper, b.clv, b.pnl_units,
+                        pa.id AS bet_id, pa.bookmaker, pa.market, pa.outcome,
+                        pa.line, pa.odds_placed, pa.status, pa.placed_at,
+                        pa.best_odds_seen, pa.best_odds_book,
+                        pa.upgrade_count, pa.outcome_result,
                         p.id AS pred_id, p.probability AS p_model,
-                        p.p_lower, p.p_upper, p.ev, p.kelly_fraction,
-                        p.best_odds, p.best_bookmaker, p.model_name, p.model_version,
+                        p.p_lower, p.p_upper, p.ev,
+                        p.best_odds, p.best_bookmaker,
+                        p.model_name, p.model_version,
                         p.shap_top5, p.llm_analysis, p.features_snapshot,
                         m.id AS match_id, m.sport_code, m.start_time,
                         m.home_score, m.away_score, m.status AS match_status,
                         h.name AS home_name, h.external_id AS home_ext,
                         a.name AS away_name, a.external_id AS away_ext,
                         l.name AS league_name
-                    FROM bets b
-                    LEFT JOIN predictions p ON p.id = b.prediction_id
-                    JOIN matches m ON m.id = b.match_id
+                    FROM pick_alerts pa
+                    LEFT JOIN predictions p ON p.id = pa.prediction_id
+                    JOIN matches m ON m.id = pa.match_id
                     JOIN teams h ON h.id = m.home_team_id
                     JOIN teams a ON a.id = m.away_team_id
                     LEFT JOIN leagues l ON l.id = m.league_id
-                    WHERE b.id = :bid
+                    WHERE pa.id = :bid
                     """
                 ),
                 {"bid": bet_id},
@@ -651,17 +659,24 @@ async def _fetch_pick_detail(bet_id: int) -> dict[str, Any] | None:
             return None
         detail = dict(row._mapping)
 
-        # Odds consensus por outcome (promedio top-5 bookmakers)
+        # Odds del mismo market+line del pick (evita mezclar h2h con spreads/totals)
         odds_rows = (
             await s.execute(
                 text(
                     """
-                    SELECT outcome, bookmaker, odds, ts
-                    FROM odds_history WHERE match_id = :mid
+                    SELECT market, outcome, bookmaker, odds, line, ts
+                    FROM odds_history
+                    WHERE match_id = :mid
+                      AND market = :mk
+                      AND (line = :ln OR (:ln IS NULL AND line IS NULL))
                     ORDER BY ts DESC LIMIT 40
                     """
                 ),
-                {"mid": detail["match_id"]},
+                {
+                    "mid": detail["match_id"],
+                    "mk": detail.get("market"),
+                    "ln": detail.get("line"),
+                },
             )
         ).all()
         detail["odds_rows"] = [dict(o._mapping) for o in odds_rows]
@@ -1045,7 +1060,7 @@ class PickDetailScreen(ModalScreen[None]):
             for w in warns[:6]:
                 text.append(f"\n     • {str(w)[:100]}\n", style="yellow")
 
-        text.append("\n  [dim italic]ESC o q para cerrar[/]\n\n")
+        text.append("\n  Presiona ESC o q para cerrar\n\n", style="dim italic")
 
         return Panel(
             text,
@@ -1105,24 +1120,35 @@ async def fetch_system_status() -> dict[str, Any]:
 
 
 async def fetch_dashboard_data() -> dict[str, Any]:
+    """Estadísticas del Dashboard adaptadas al modo detector puro.
+
+    Post-pivote 2026-04-23: sin bankroll, sin PnL, sin CLV. Usa `pick_alerts`
+    y `outcome_result` para mostrar hit-rate, # alertas vivas/resueltas, y
+    % positivo histórico. `bankroll`/`roi_7d`/`clv_7d` quedan como 0.0 por
+    compatibilidad de layout (Sprint 2 los reemplaza por Brier/BSS/ECE).
+    """
     async with session_scope() as session:
-        bankroll_row = (
-            await session.execute(
-                text("SELECT bankroll_units FROM bankroll_history ORDER BY ts DESC LIMIT 1")
-            )
-        ).first()
         perf_row = (
             await session.execute(
                 text(
                     """
                     SELECT
-                        COALESCE(SUM(pnl_units) FILTER (WHERE settled_at >= NOW() - INTERVAL '7 days'), 0) AS pnl_7d,
-                        COALESCE(SUM(stake_units) FILTER (WHERE settled_at >= NOW() - INTERVAL '7 days'), 0) AS stake_7d,
-                        COALESCE(AVG(clv) FILTER (WHERE settled_at >= NOW() - INTERVAL '7 days'), 0) AS clv_7d,
-                        COUNT(*) FILTER (WHERE status = 'pending') AS active_picks,
-                        COUNT(*) FILTER (WHERE status = 'won') AS wins,
-                        COUNT(*) FILTER (WHERE status IN ('won','lost')) AS settled
-                    FROM bets
+                        COUNT(*) FILTER (
+                            WHERE outcome_result IS NULL OR outcome_result = 'pending'
+                        ) AS active_picks,
+                        COUNT(*) FILTER (WHERE outcome_result = 'won') AS wins,
+                        COUNT(*) FILTER (
+                            WHERE outcome_result IN ('won','lost')
+                        ) AS settled,
+                        COUNT(*) FILTER (
+                            WHERE outcome_result = 'won'
+                              AND result_settled_at >= NOW() - INTERVAL '7 days'
+                        ) AS wins_7d,
+                        COUNT(*) FILTER (
+                            WHERE outcome_result IN ('won','lost')
+                              AND result_settled_at >= NOW() - INTERVAL '7 days'
+                        ) AS settled_7d
+                    FROM pick_alerts
                     """
                 )
             )
@@ -1151,16 +1177,16 @@ async def fetch_dashboard_data() -> dict[str, Any]:
             await session.execute(
                 text(
                     """
-                    SELECT b.id, b.market, b.outcome, b.odds_placed, b.stake_units,
-                           b.bookmaker, p.ev,
+                    SELECT pa.id, pa.market, pa.outcome, pa.odds_placed,
+                           pa.bookmaker, p.ev,
                            h.name AS home_name, a.name AS away_name,
                            m.start_time
-                    FROM bets b
-                    LEFT JOIN predictions p ON p.id = b.prediction_id
-                    JOIN matches m ON m.id = b.match_id
+                    FROM pick_alerts pa
+                    LEFT JOIN predictions p ON p.id = pa.prediction_id
+                    JOIN matches m ON m.id = pa.match_id
                     JOIN teams h ON h.id = m.home_team_id
                     JOIN teams a ON a.id = m.away_team_id
-                    WHERE b.status = 'pending'
+                    WHERE pa.outcome_result IS NULL OR pa.outcome_result = 'pending'
                     ORDER BY m.start_time ASC LIMIT 15
                     """
                 )
@@ -1168,13 +1194,12 @@ async def fetch_dashboard_data() -> dict[str, Any]:
         ).all()
         total_matches_row = (await session.execute(text("SELECT COUNT(*) FROM matches"))).first()
 
-    bankroll = float(bankroll_row.bankroll_units) if bankroll_row else 100.0
-    pnl_7d = float(perf_row.pnl_7d or 0) if perf_row else 0.0
-    stake_7d = float(perf_row.stake_7d or 0) if perf_row else 0.0
-    clv_7d = float(perf_row.clv_7d or 0) if perf_row else 0.0
     active = int(perf_row.active_picks or 0) if perf_row else 0
     wins = int(perf_row.wins or 0) if perf_row else 0
     settled = int(perf_row.settled or 0) if perf_row else 0
+    wins_7d = int(perf_row.wins_7d or 0) if perf_row else 0
+    settled_7d = int(perf_row.settled_7d or 0) if perf_row else 0
+    hit_rate_7d = wins_7d / settled_7d if settled_7d > 0 else 0.0
     paused = False
     if paused_row and paused_row.value:
         val = paused_row.value
@@ -1184,11 +1209,12 @@ async def fetch_dashboard_data() -> dict[str, Any]:
             paused = "true" in val.lower()
     total_matches = int(total_matches_row[0]) if total_matches_row else 0
     return {
-        "bankroll": bankroll,
-        "roi_7d": pnl_7d / stake_7d if stake_7d > 0 else 0.0,
-        "clv_7d": clv_7d,
+        "bankroll": 0.0,  # retirado — placeholder para el card legacy
+        "roi_7d": 0.0,
+        "clv_7d": 0.0,
         "active_picks": active,
         "hit_rate": wins / settled if settled > 0 else 0.0,
+        "hit_rate_7d": hit_rate_7d,
         "settled_count": settled,
         "paused": paused,
         "events": [dict(e._mapping) for e in events],
@@ -1244,6 +1270,10 @@ class DashboardScreen(VerticalScroll):
         yield DataTable(id="events_table", show_header=True, zebra_stripes=True, cursor_type="row")
         yield Container(id="events_empty_slot")
         yield Label("[b cyan]🎯 Picks activos (pending)[/]", classes="section")
+        yield Static(
+            "  [dim]Presiona[/] [b]Enter[/] [dim]sobre un pick para ver análisis completo: "
+            "dónde apostar, cuánto stake, factores LLM, SHAP, line movement, hedge sugerido.[/]"
+        )
         yield DataTable(id="picks_table", show_header=True, zebra_stripes=True, cursor_type="row")
         yield Container(id="picks_empty_slot")
 
@@ -1324,7 +1354,7 @@ class DashboardScreen(VerticalScroll):
                 hora = dt.strftime("%a %H:%M") if isinstance(dt, datetime) else str(dt)[:16]
                 ev_tbl.add_row(
                     hora,
-                    e["sport_code"] or "?",
+                    (e["sport_code"] or "?").upper(),
                     (e["home_name"] or "?")[:24],
                     (e["away_name"] or "?")[:24],
                     str(e["n_odds"] or 0),
@@ -1362,7 +1392,7 @@ class DashboardScreen(VerticalScroll):
                     hora,
                     str(p["market"])[:10],
                     str(p["outcome"])[:12],
-                    f"{float(p['stake_units']):.2f}u",
+                    "—",  # stake retirado en pivote detector puro
                     f"{float(p['odds_placed']):.2f}",
                     (p["bookmaker"] or "?")[:10],
                     f"{ev_val:+.2f}",
@@ -1419,21 +1449,29 @@ class PostMortemsScreen(VerticalScroll):
 
     async def on_mount(self) -> None:
         tbl = self.query_one("#pm_table", DataTable)
-        tbl.add_columns("Bet", "Outcome", "Discrepancy", "PnL", "Lección aprendida")
+        tbl.add_columns("Pick", "Outcome", "Discrepancy", "Resultado", "Lección")
         await self.refresh_data()
 
     async def refresh_data(self) -> None:
+        """Lee `pick_analysis` (ex-post_mortems sin columnas monetarias).
+
+        Post-pivote: reemplaza PnL con outcome_result (won/lost/void/expired).
+        Sprint 2 añade Brier por pick + SHAP top-5 al final de la fila.
+        """
         try:
             async with session_scope() as s:
                 rows = (
                     await s.execute(
                         text(
                             """
-                            SELECT bet_id, outcome, discrepancy_score, pnl_units,
-                                   narrative->>'transferable_lesson' AS lesson
-                            FROM post_mortems
-                            WHERE discrepancy_score IS NOT NULL
-                            ORDER BY discrepancy_score DESC NULLS LAST LIMIT 20
+                            SELECT pa_meta.pick_alert_id, pa_meta.outcome,
+                                   pa_meta.discrepancy_score,
+                                   pa_meta.narrative->>'transferable_lesson' AS lesson,
+                                   pa.outcome_result
+                            FROM pick_analysis pa_meta
+                            JOIN pick_alerts pa ON pa.id = pa_meta.pick_alert_id
+                            WHERE pa_meta.discrepancy_score IS NOT NULL
+                            ORDER BY pa_meta.discrepancy_score DESC NULLS LAST LIMIT 20
                             """
                         )
                     )
@@ -1451,27 +1489,36 @@ class PostMortemsScreen(VerticalScroll):
             await empty_slot.mount(
                 EmptyState(
                     icon="🔬",
-                    title="Sin post-mortems todavía",
+                    title="Sin análisis de picks todavía",
                     description=(
-                        "Se generan automáticamente cuando una bet se liquida.\n"
-                        "Cada post-mortem incluye: discrepancia modelo/realidad,\n"
-                        "SHAP top-5, narrativa LLM con lección transferible."
+                        "Se generan cuando una alerta se resuelve (won/lost).\n"
+                        "Cada análisis incluye discrepancia modelo/realidad + SHAP.\n"
+                        "Sprint 2 añade Brier + BSS + ECE."
                     ),
-                    cta="Cuando termine un partido, corre: apuestas settle",
+                    cta="Corre: apuestas analyze + apuestas live-scores",
                 )
             )
             return
         tbl.display = True
+        result_color = {
+            "won": "green",
+            "lost": "red",
+            "void": "dim",
+            "halfwon": "cyan",
+            "halflost": "yellow",
+            "expired": "dim",
+            None: "yellow",
+        }
         for r in rows:
             disc = float(r.discrepancy_score or 0)
             disc_color = "green" if disc < 0.2 else "yellow" if disc < 0.5 else "red"
-            pnl = float(r.pnl_units or 0)
-            pnl_color = "green" if pnl > 0 else "red" if pnl < 0 else "dim"
+            res = r.outcome_result or "pending"
+            rcol = result_color.get(r.outcome_result, "yellow")
             tbl.add_row(
-                f"#{r.bet_id}",
+                f"#{r.pick_alert_id}",
                 str(r.outcome or "-"),
                 f"[{disc_color}]{disc:.3f}[/]",
-                f"[{pnl_color}]{pnl:+.2f}u[/]",
+                f"[{rcol}]{res}[/]",
                 (r.lesson or "(sin lección)")[:80],
             )
 
@@ -1480,110 +1527,31 @@ class PostMortemsScreen(VerticalScroll):
 
 
 class BankrollScreen(VerticalScroll):
-    BINDINGS = [Binding("r", "refresh", "Refresh")]
+    """Retirada en pivote detector puro (2026-04-23).
+
+    Se mantiene la clase importable para no romper imports legacy; el tab no
+    se monta en el TabbedContent principal. Sprint 2 la elimina totalmente.
+    """
+
+    BINDINGS: list[Binding] = []
 
     def compose(self) -> ComposeResult:
-        yield Label("[b cyan]💰 Curva de bankroll[/] — últimos 60 días", classes="section")
-        yield Static(id="bankroll_plot")
-        yield Label("[b cyan]📜 Bets recientes[/]", classes="section")
-        yield DataTable(id="recent_bets", show_header=True, zebra_stripes=True, cursor_type="row")
-        yield Container(id="br_empty_slot")
-
-    async def on_mount(self) -> None:
-        tbl = self.query_one("#recent_bets", DataTable)
-        tbl.add_columns("Fecha", "Mercado", "Pick", "Odds", "Stake", "Status", "PnL")
-        await self.refresh_data()
+        yield Label(
+            "[b yellow]💰 Bankroll — retirado[/]  "
+            "[dim](pivote 2026-04-23: el bot ya no gestiona saldo)[/]",
+            classes="section",
+        )
+        yield Static(
+            "El bot pasó a modo [b]detector puro[/] — emite alertas de valor,\n"
+            "no administra banca, stake ni PnL. Consulta /picks en Telegram\n"
+            "o la pestaña Dashboard para ver alertas activas."
+        )
 
     async def refresh_data(self) -> None:
-        try:
-            async with session_scope() as s:
-                curve = (
-                    await s.execute(
-                        text(
-                            "SELECT ts, bankroll_units FROM bankroll_history "
-                            "WHERE ts >= NOW() - INTERVAL '60 days' ORDER BY ts ASC"
-                        )
-                    )
-                ).all()
-                recent = (
-                    await s.execute(
-                        text(
-                            """
-                            SELECT placed_at, market, outcome, odds_placed,
-                                   stake_units, status, pnl_units
-                            FROM bets ORDER BY placed_at DESC LIMIT 20
-                            """
-                        )
-                    )
-                ).all()
-        except Exception as exc:
-            self.app.notify(f"⚠ {exc!s:.80}", severity="error")
-            return
-
-        plot_widget = self.query_one("#bankroll_plot", Static)
-        if len(curve) >= 2:
-            try:
-                import plotext as plt
-
-                plt.clear_figure()
-                xs = list(range(len(curve)))
-                ys = [float(c.bankroll_units) for c in curve]
-                plt.plot(xs, ys, marker="braille")
-                plt.title(f"Bankroll ({len(curve)} snapshots)")
-                plt.plotsize(110, 16)
-                plt.theme("dark")
-                plot_widget.update(plt.build())
-            except Exception as exc:
-                plot_widget.update(f"[yellow]Plot indisponible: {exc!s:.60}[/]")
-        else:
-            plot_widget.update(
-                "\n"
-                "[yellow]   Aún sin historial suficiente para graficar (≥2 snapshots).[/]\n"
-                "[dim]   Cada bet liquidada añade un snapshot automáticamente.[/]\n"
-            )
-
-        tbl = self.query_one("#recent_bets", DataTable)
-        empty_slot = self.query_one("#br_empty_slot", Container)
-        tbl.clear()
-        await empty_slot.remove_children()
-        if not recent:
-            tbl.display = False
-            await empty_slot.mount(
-                EmptyState(
-                    icon="🎲",
-                    title="Sin bets aún",
-                    description=(
-                        "Toma tu primera paper bet desde el Dashboard.\n"
-                        "El bot opera en modo paper (virtual) hasta que tú actives real."
-                    ),
-                    cta="Ve a Dashboard y presiona [ A ]",
-                )
-            )
-            return
-        tbl.display = True
-        for r in recent:
-            status_color = {
-                "won": "green",
-                "lost": "red",
-                "void": "dim",
-                "pending": "yellow",
-                "halfwon": "green",
-                "halflost": "red",
-            }.get(str(r.status), "white")
-            pnl_val = float(r.pnl_units or 0)
-            pnl_color = "green" if pnl_val > 0 else "red" if pnl_val < 0 else "dim"
-            tbl.add_row(
-                r.placed_at.strftime("%d-%b %H:%M") if r.placed_at else "-",
-                str(r.market)[:10],
-                str(r.outcome)[:10],
-                f"{float(r.odds_placed):.2f}",
-                f"{float(r.stake_units):.2f}u",
-                f"[{status_color}]{r.status}[/]",
-                f"[{pnl_color}]{pnl_val:+.2f}u[/]" if r.pnl_units is not None else "-",
-            )
+        return
 
     async def action_refresh(self) -> None:
-        await self.refresh_data()
+        return
 
 
 class DriftScreen(VerticalScroll):
@@ -1668,18 +1636,93 @@ class CalibrationScreen(VerticalScroll):
 
     def compose(self) -> ComposeResult:
         yield Label(
-            "[b cyan]🎯 Calibración[/] — gap entre probabilidad predicha y acierto real",
+            "[b cyan]🎯 Calibración[/] — KPIs primarios + gap predicho vs real",
             classes="section",
         )
+        # Sprint 4d — tabla nueva de KPIs primarios por deporte
+        yield Label("[dim]KPIs 30d por deporte (Brier ≤ 0.22 · BSS ≥ 0.03 · ECE ≤ 0.05)[/]")
+        yield DataTable(id="kpi_table", show_header=True, zebra_stripes=True, cursor_type="row")
+        yield Label("\n[dim]Detalle por bucket (legacy calibration_rolling)[/]")
         yield DataTable(id="cal_table", show_header=True, zebra_stripes=True, cursor_type="row")
         yield Container(id="cal_empty_slot")
 
     async def on_mount(self) -> None:
+        kpi = self.query_one("#kpi_table", DataTable)
+        kpi.add_columns("Sport", "N", "Brier", "BSS", "ECE", "Hit", "HR-impl", "Status")
         tbl = self.query_one("#cal_table", DataTable)
         tbl.add_columns("Sport", "Market", "Bucket", "N", "Predicho", "Real", "Gap")
         await self.refresh_data()
 
+    async def _refresh_kpis(self) -> None:
+        """Computa Brier/BSS/ECE/hit_rate desde pick_alerts + predictions.
+
+        Usa apuestas.ml.metrics.compute_metrics sobre alertas resueltas de
+        los últimos 30d por deporte. Marca PASS/FAIL según MVP thresholds.
+        """
+        import numpy as np
+
+        from apuestas.ml.metrics import compute_metrics
+
+        kpi = self.query_one("#kpi_table", DataTable)
+        kpi.clear()
+
+        try:
+            async with session_scope() as s:
+                rows = (
+                    await s.execute(
+                        text(
+                            """
+                            SELECT m.sport_code,
+                                   CASE WHEN pa.outcome_result = 'won' THEN 1 ELSE 0 END AS y,
+                                   p.probability AS p_model,
+                                   pa.odds_placed
+                            FROM pick_alerts pa
+                            LEFT JOIN predictions p ON p.id = pa.prediction_id
+                            JOIN matches m ON m.id = pa.match_id
+                            WHERE pa.outcome_result IN ('won', 'lost')
+                              AND pa.result_settled_at >= NOW() - INTERVAL '30 days'
+                            """
+                        )
+                    )
+                ).all()
+        except Exception as exc:
+            logger.debug("tui.kpi_query_fail", error=str(exc))
+            return
+
+        by_sport: dict[str, list[Any]] = {}
+        for r in rows:
+            by_sport.setdefault(str(r.sport_code or "?"), []).append(r)
+
+        kpi_brier_cap = {"nba": 0.22, "nfl": 0.23}
+        for sport, sport_rows in sorted(by_sport.items()):
+            y = np.array([int(r.y) for r in sport_rows])
+            p = np.array([float(r.p_model) if r.p_model is not None else 0.5 for r in sport_rows])
+            odds_arr = np.array(
+                [float(r.odds_placed) for r in sport_rows if r.odds_placed is not None]
+            )
+            avg_odds = float(odds_arr[odds_arr > 1.0].mean()) if (odds_arr > 1.0).any() else None
+            m = compute_metrics(y, p, avg_odds=avg_odds)
+            brier_cap = kpi_brier_cap.get(sport.lower(), 0.24)
+            passes = (
+                m.brier <= brier_cap
+                and m.brier_skill_score >= 0.03
+                and m.ece <= 0.05
+                and m.hit_rate_minus_implied >= 0.02
+            )
+            status = "[green]PASS[/]" if passes else "[red]FAIL[/]"
+            kpi.add_row(
+                sport,
+                str(m.n),
+                f"{m.brier:.4f}",
+                f"{m.brier_skill_score:+.4f}",
+                f"{m.ece:.4f}",
+                f"{m.hit_rate:.3f}",
+                f"{m.hit_rate_minus_implied:+.3f}",
+                status,
+            )
+
     async def refresh_data(self) -> None:
+        await self._refresh_kpis()
         rows: list[Any] = []
         try:
             async with session_scope() as s:
@@ -1874,6 +1917,11 @@ class RegionalScreen(VerticalScroll):
             "[b cyan]🌎 Regional MX vs US[/] — mejor casa por pick con edge neto",
             classes="section",
         )
+        yield Static(
+            "  [dim]🇲🇽 MX: Caliente · Strendus · Codere (SEGOB)    "
+            "🇺🇸 US: DraftKings · FanDuel · BetMGM · Caesars (estatal)    "
+            "Recom. = book con mayor EV neto ajustado por límites y tolerancia.[/]"
+        )
         yield DataTable(
             id="regional_table",
             show_header=True,
@@ -1902,16 +1950,17 @@ class RegionalScreen(VerticalScroll):
                     await s.execute(
                         text(
                             """
-                            SELECT b.id AS bet_id, b.outcome AS bet_outcome,
-                                   b.match_id, b.bookmaker AS placed_book,
-                                   b.odds_placed, p.probability AS p_fair,
+                            SELECT pa.id AS bet_id, pa.outcome AS bet_outcome,
+                                   pa.match_id, pa.bookmaker AS placed_book,
+                                   pa.odds_placed, p.probability AS p_fair,
                                    h.name AS home_name, a.name AS away_name
-                            FROM bets b
-                            LEFT JOIN predictions p ON p.id = b.prediction_id
-                            JOIN matches m ON m.id = b.match_id
+                            FROM pick_alerts pa
+                            LEFT JOIN predictions p ON p.id = pa.prediction_id
+                            JOIN matches m ON m.id = pa.match_id
                             JOIN teams h ON h.id = m.home_team_id
                             JOIN teams a ON a.id = m.away_team_id
-                            WHERE b.status = 'pending'
+                            WHERE pa.outcome_result IS NULL
+                               OR pa.outcome_result = 'pending'
                             ORDER BY m.start_time ASC
                             LIMIT 30
                             """
@@ -2302,7 +2351,7 @@ class TelegramSetupWizard(ModalScreen[None]):
         body.append("\n", style="white")
         body.append(
             '    3. Nombre: ej. "Mi Apuestas Bot"\n    4. Username: termina en "bot" '
-            "(ej. leandro_apuestas_bot)\n",
+            "(ej. mi_apuestas_bot)\n",
             style="white",
         )
         body.append(
@@ -2379,7 +2428,7 @@ class TelegramSetupWizard(ModalScreen[None]):
             return
 
         # Escribir .env
-        env_path = Path("/home/leandro/proyectos/apuestas/.env")
+        env_path = Path(__file__).resolve().parents[3] / ".env"  # repo root
         _update_env_vars(
             env_path,
             {"TELEGRAM_BOT_TOKEN": token, "TELEGRAM_CHAT_ID": chat_id},
@@ -2499,7 +2548,7 @@ class RedditSetupWizard(ModalScreen[None]):
                 status.update("[red]❌ Client ID o secret parecen inválidos (muy cortos)[/]")
                 return
             _update_env_vars(
-                Path("/home/leandro/proyectos/apuestas/.env"),
+                Path(__file__).resolve().parents[3] / ".env",
                 {"REDDIT_CLIENT_ID": cid, "REDDIT_CLIENT_SECRET": sec},
             )
             status.update(
@@ -2584,6 +2633,11 @@ class SetupScreen(VerticalScroll):
                 Button("🧹 Limpiar logs buffer", id="btn_logs_clear", variant="default"),
                 Button("🧪 Test APIs externas", id="btn_test_apis", variant="primary"),
                 Button("🧪 Test DeepSeek LLM", id="btn_test_llm", variant="primary"),
+            ),
+            Horizontal(
+                Button("🎯 Test Pinnacle guest", id="btn_test_pinnacle", variant="primary"),
+                Button("🐴 Test Betfair Exchange", id="btn_test_betfair", variant="primary"),
+                Button("🇺🇸 Test US books", id="btn_test_us_books", variant="primary"),
             ),
             id="maint_section",
         )
@@ -2711,8 +2765,9 @@ class SetupScreen(VerticalScroll):
             self.app.notify("⏳ Backup en curso...", timeout=3)
             import subprocess
 
+            backup_script = Path(__file__).resolve().parents[3] / "scripts" / "backup.sh"
             proc = await asyncio.create_subprocess_exec(
-                "/home/leandro/.local/share/apuestas/backup.sh",
+                str(backup_script),
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
             )
@@ -2751,6 +2806,12 @@ class SetupScreen(VerticalScroll):
             await self._test_apis(fb)
         elif bid == "btn_test_llm":
             await self._test_llm(fb)
+        elif bid == "btn_test_pinnacle":
+            await self._test_pinnacle(fb)
+        elif bid == "btn_test_betfair":
+            await self._test_betfair(fb)
+        elif bid == "btn_test_us_books":
+            await self._test_us_books(fb)
 
     async def _test_telegram(self, fb: Static) -> None:
         import os
@@ -2845,6 +2906,86 @@ class SetupScreen(VerticalScroll):
         except Exception as exc:
             fb.update(f"[red]❌ {exc!s:.100}[/]")
 
+    async def _test_pinnacle(self, fb: Static) -> None:
+        """Consulta guest API Pinnacle y reporta cobertura por deporte."""
+        fb.update("[yellow]⏳ Consultando Pinnacle guest API (NBA+EPL+LigaMX+NHL)...[/]")
+        try:
+            from apuestas.ingest.pinnacle_scraper import ingest_league
+
+            lines = ["[green]✅ Pinnacle guest (fuente sharp GRATIS):[/]"]
+            for sport in ("nba", "soccer_epl", "soccer_liga_mx", "nhl"):
+                try:
+                    matchups, odds = await ingest_league(sport, persist=False)
+                    lines.append(
+                        f"  [cyan]{sport:<20}[/] {len(matchups):>3} matchups · {len(odds):>4} odds"
+                    )
+                except Exception as exc:
+                    lines.append(f"  [red]{sport}: {exc!s:.40}[/]")
+            fb.update("\n".join(lines))
+        except Exception as exc:
+            fb.update(f"[red]❌ {exc!s:.120}[/]")
+
+    async def _test_betfair(self, fb: Static) -> None:
+        """Verifica credenciales Betfair + intenta login."""
+        from apuestas.ingest.betfair_exchange import (
+            BetfairExchangeClient,
+            _credentials_available,
+        )
+
+        if not _credentials_available():
+            fb.update(
+                "[yellow]⚠ Betfair Exchange no configurado[/]\n"
+                "[dim]Para activar, añade al .env:\n"
+                "  BETFAIR_APP_KEY, BETFAIR_USERNAME, BETFAIR_PASSWORD\n"
+                "Obtén App Key delayed (gratis):\n"
+                "  https://apps.betfair.com/visualisers/api-ng-account-operations/[/]"
+            )
+            return
+        fb.update("[yellow]⏳ Login Betfair...[/]")
+        try:
+            client = BetfairExchangeClient()
+            ok = await client.login()
+            client.logout()
+            if ok:
+                fb.update("[green]✅ Betfair Exchange: login OK[/]")
+            else:
+                fb.update("[red]❌ Login falló — revisa credenciales en .env[/]")
+        except Exception as exc:
+            fb.update(f"[red]❌ {exc!s:.120}[/]")
+
+    async def _test_us_books(self, fb: Static) -> None:
+        """Intenta DK+FD+MGM solo si los flags APUESTAS_ENABLE_* están true."""
+        import os as _os
+
+        enabled = [
+            b
+            for b in ("DK", "FANDUEL", "BETMGM")
+            if _os.environ.get(f"APUESTAS_ENABLE_{b}", "").lower() in ("1", "true", "yes")
+        ]
+        if not enabled:
+            fb.update(
+                "[yellow]⚠ US books deshabilitados[/]\n"
+                "[dim]Para activar, setea en .env:\n"
+                "  APUESTAS_ENABLE_DK=true\n"
+                "  APUESTAS_ENABLE_FANDUEL=true\n"
+                "  APUESTAS_ENABLE_BETMGM=true\n"
+                "Requiere camoufox (ya instalado).[/]"
+            )
+            return
+        fb.update(f"[yellow]⏳ Probando US books habilitados: {', '.join(enabled)}...[/]")
+        try:
+            from apuestas.ingest.us_books_scraper import fetch_all
+
+            results = await fetch_all(["nba", "nfl"])
+            lines = ["[green]✅ US books:[/]"]
+            for book, odds in results.items():
+                n = len(odds)
+                color = "green" if n > 0 else "yellow"
+                lines.append(f"  [{color}]● {book}: {n} odds[/]")
+            fb.update("\n".join(lines))
+        except Exception as exc:
+            fb.update(f"[red]❌ {exc!s:.120}[/]")
+
     async def action_refresh(self) -> None:
         await self.refresh_data()
 
@@ -2887,9 +3028,7 @@ class ApuestasCommands(Provider):
 
     COMMANDS: list[tuple[str, str, str]] = [
         # (título mostrado, ayuda, acción-string del app)
-        ("📊 Ir a Dashboard", "Overview: bankroll, ROI, picks", "switch_tab('dash')"),
-        ("🔍 Ir a Post-mortems", "Lecciones de bets liquidadas", "switch_tab('pm')"),
-        ("💰 Ir a Bankroll", "Curva capital 60d + bets recientes", "switch_tab('bankroll')"),
+        ("📊 Ir a Dashboard", "Overview: hit rate, alertas vivas/resueltas", "switch_tab('dash')"),
         ("🤖 Ir a Models", "Estado modelos ML + drift", "switch_tab('models')"),
         ("🎯 Ir a Calibración", "Gap predicho vs real", "switch_tab('calibration')"),
         ("🧠 Ir a Memoria", "cuba-memorys status + contenido", "switch_tab('memory')"),
@@ -2998,7 +3137,7 @@ class ApuestasTUI(App[None]):
         Binding("h", "toggle_sidebar", "Toggle ayuda"),
         Binding("d", "switch_tab('dash')", "Dashboard"),
         Binding("p", "switch_tab('pm')", "Post-mortems"),
-        Binding("b", "switch_tab('bankroll')", "Bankroll"),
+        # Binding b retirado: tab "bankroll" ya no existe tras pivote detector puro.
         Binding("m", "switch_tab('models')", "Models"),
         Binding("c", "switch_tab('calibration')", "Calibración"),
         Binding("e", "switch_tab('memory')", "Memoria"),
@@ -3027,10 +3166,9 @@ class ApuestasTUI(App[None]):
                 with TabbedContent(initial="dash", id="main_tabs"):
                     with TabPane("📊 Dashboard", id="dash"):
                         yield DashboardScreen()
-                    with TabPane("🔍 Post-mortems", id="pm"):
-                        yield PostMortemsScreen()
-                    with TabPane("💰 Bankroll", id="bankroll"):
-                        yield BankrollScreen()
+                    # Post-mortems y Bankroll retirados en pivote detector puro
+                    # (2026-04-23). Sprint 2 añadirá AnalysisScreen basada en
+                    # pick_analysis + SHAP en su lugar.
                     with TabPane("🤖 Models", id="models"):
                         yield DriftScreen()
                     with TabPane("🎯 Calibración", id="calibration"):
@@ -3119,9 +3257,14 @@ class ApuestasTUI(App[None]):
             self.query_one(TabbedContent).active = "dash"
             return
 
-    async def action_toggle_pause(self) -> None:
+    def action_toggle_pause(self) -> None:
+        """Binding P → lanza worker (push_screen_wait requiere worker en Textual >=0.72)."""
+        self._toggle_pause_worker()
+
+    @work(exclusive=True)
+    async def _toggle_pause_worker(self) -> None:
         try:
-            from apuestas.betting.portfolio import is_bot_paused, pause_bot, resume_bot
+            from apuestas.bot.control import is_bot_paused, pause_bot, resume_bot
 
             paused, _ = await is_bot_paused()
             if paused:

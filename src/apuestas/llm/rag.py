@@ -62,32 +62,29 @@ class RAGRetriever:
         vec = await self.embed_client.embed_one(query)
         vec_str = "[" + ",".join(f"{x:.6f}" for x in vec) + "]"
 
+        # Query con binds opcionales; usa :sports / :team_ids como NULL-check
+        # en lugar de interpolar WHERE dinámico (evita riesgo SQL injection).
         params: dict[str, object] = {
             "vec": vec_str,
             "since": since,
             "top_k": top_k,
+            "sports": sports,
+            "team_ids": team_ids,
         }
-        filters = ["published_at >= :since"]
-        if sports:
-            filters.append("sports && :sports")
-            params["sports"] = sports
-        if team_ids:
-            filters.append("teams_mentioned && :team_ids")
-            params["team_ids"] = team_ids
-
-        where_clause = " AND ".join(filters)
 
         async with session_scope() as session:
             result = await session.execute(
                 text(
-                    f"""
+                    """
                     SELECT id, source, url, title, content, published_at,
                            teams_mentioned, players_mentioned,
-                           1 - (embedding <=> (:vec)::vector) AS score
+                           1 - (embedding <=> CAST(:vec AS vector)) AS score
                     FROM news_articles
-                    WHERE {where_clause}
+                    WHERE published_at >= :since
+                      AND (CAST(:sports AS text[]) IS NULL OR sports && CAST(:sports AS text[]))
+                      AND (CAST(:team_ids AS bigint[]) IS NULL OR teams_mentioned && CAST(:team_ids AS bigint[]))
                       AND embedding IS NOT NULL
-                    ORDER BY embedding <=> (:vec)::vector
+                    ORDER BY embedding <=> CAST(:vec AS vector)
                     LIMIT :top_k
                     """
                 ),
@@ -123,21 +120,18 @@ class RAGRetriever:
     ) -> list[RAGHit]:
         """BM25-like via PostgreSQL FTS con índice idx_news_fts."""
         since = since or (datetime.now(tz=UTC) - timedelta(days=7))
-        params: dict[str, object] = {"q": query, "since": since, "top_k": top_k}
-
-        filters = ["published_at >= :since"]
-        if sports:
-            filters.append("sports && :sports")
-            params["sports"] = sports
-        if team_ids:
-            filters.append("teams_mentioned && :team_ids")
-            params["team_ids"] = team_ids
-        where_clause = " AND ".join(filters)
+        params: dict[str, object] = {
+            "q": query,
+            "since": since,
+            "top_k": top_k,
+            "sports": sports,
+            "team_ids": team_ids,
+        }
 
         async with session_scope() as session:
             result = await session.execute(
                 text(
-                    f"""
+                    """
                     SELECT id, source, url, title, content, published_at,
                            teams_mentioned, players_mentioned,
                            ts_rank_cd(
@@ -145,7 +139,9 @@ class RAGRetriever:
                              websearch_to_tsquery('spanish', unaccent(:q))
                            ) AS score
                     FROM news_articles
-                    WHERE {where_clause}
+                    WHERE published_at >= :since
+                      AND (CAST(:sports AS text[]) IS NULL OR sports && CAST(:sports AS text[]))
+                      AND (CAST(:team_ids AS bigint[]) IS NULL OR teams_mentioned && CAST(:team_ids AS bigint[]))
                       AND to_tsvector('spanish', unaccent(coalesce(title,'') || ' ' || coalesce(content,'')))
                           @@ websearch_to_tsquery('spanish', unaccent(:q))
                     ORDER BY score DESC

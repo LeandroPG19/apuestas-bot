@@ -199,6 +199,23 @@ def build_nba_feature_frame(
         if c in team_feats.columns:
             feature_cols.append(c)
 
+    # Sprint 11 Fase F — clutch stats (opt-in). Si team_games tiene columnas
+    # game_id/period/time_remaining_sec/score_margin, añade rolling clutch.
+    import os as _os
+
+    if _os.environ.get("APUESTAS_ENABLE_NBA_CLUTCH", "true").lower() == "true":
+        try:
+            from apuestas.features.nba_clutch import (
+                add_clutch_rolling,
+                compute_clutch_from_pbp,
+            )
+
+            clutch_stats = compute_clutch_from_pbp(team_games)
+            if clutch_stats.height > 0:
+                team_feats = add_clutch_rolling(team_feats, clutch_stats)
+        except Exception:
+            pass
+
     merged = join_home_away(matches, team_feats, feature_cols=feature_cols)
 
     # Diferenciales

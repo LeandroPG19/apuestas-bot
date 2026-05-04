@@ -91,11 +91,12 @@ async def _fetch_reddit_oauth(
 ) -> list[dict[str, Any]]:
     import asyncpraw  # type: ignore[import-untyped]
 
-    reddit = asyncpraw.Reddit(
+    # Usar como context manager para cerrar correctamente todas las conexiones
+    # (evita "Unclosed connection" warnings de asyncio en Python 3.14)
+    async with asyncpraw.Reddit(
         client_id=client_id, client_secret=client_secret, user_agent=user_agent
-    )
-    posts: list[dict[str, Any]] = []
-    try:
+    ) as reddit:
+        posts: list[dict[str, Any]] = []
         sub = await reddit.subreddit(sub_name)
         async for submission in sub.new(limit=limit):
             if submission.stickied or submission.score < min_upvotes:
@@ -116,8 +117,6 @@ async def _fetch_reddit_oauth(
                     "num_comments": submission.num_comments,
                 }
             )
-    finally:
-        await reddit.close()
     logger.info("reddit.fetched_oauth", sub=sub_name, count=len(posts))
     return posts
 
@@ -234,7 +233,14 @@ async def fetch_all_reddit() -> list[dict[str, Any]]:
     all_posts: list[dict[str, Any]] = []
     for r, sub in zip(results, config.get("reddit_subs", []), strict=False):
         if isinstance(r, Exception):
-            logger.warning("reddit.sub_error", sub=sub.get("name"), error=str(r))
+            # 401 Unauthorized = credenciales OAuth no configuradas → info (no warn spam)
+            err_str = str(r)
+            level = "info" if "401" in err_str or "unauthorized" in err_str.lower() else "warning"
+            getattr(logger, level)(
+                "reddit.sub_skip" if level == "info" else "reddit.sub_error",
+                sub=sub.get("name"),
+                error=err_str[:80],
+            )
             continue
         # Anotar sports del sub
         for p in r:
@@ -253,7 +259,14 @@ async def fetch_bluesky_author(handle: str, *, limit: int = 50) -> list[dict[str
         profile = await client.get_profile(actor=handle)
         feed = await client.get_author_feed(actor=profile.did, limit=limit)
     except Exception as exc:
-        logger.warning("bluesky.fetch_failed", handle=handle, error=str(exc))
+        err = str(exc)
+        # 401 AuthMissing = sin app-password configurado → info (no warn spam)
+        level = "info" if "AuthMissing" in err or "401" in err else "warning"
+        getattr(logger, level)(
+            "bluesky.fetch_skip" if level == "info" else "bluesky.fetch_failed",
+            handle=handle,
+            error=err[:80],
+        )
         return []
 
     posts: list[dict[str, Any]] = []

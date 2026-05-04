@@ -1,8 +1,12 @@
-"""Expected Value + Kelly wrappers + line shopping.
+"""Expected Value + line shopping.
 
-Blueprint §7: EV = P_modelo × cuota − 1. Kelly fraccional = ¼ Kelly con cap 5%.
-Line shopping: mejor precio disponible entre soft books, excluyendo Pinnacle
-(el fair value, NO donde apuestas).
+Blueprint §7: EV = P_modelo × cuota − 1. Line shopping: mejor precio
+disponible entre soft books, excluyendo Pinnacle (el fair value, no donde
+se apuesta).
+
+Nota post-pivote 2026-04-23: el módulo ya no calcula Kelly ni stakes; el
+bot es puro detector de alertas de valor. Las funciones `kelly_stake` y
+`evaluate_offer` con bankroll/stake fueron eliminadas.
 """
 
 from __future__ import annotations
@@ -11,7 +15,6 @@ from dataclasses import dataclass
 from typing import Literal
 
 from apuestas.config import get_settings
-from apuestas.risk.kelly import kelly_fraction as _kelly_fraction
 
 SHARP_BOOKS = frozenset({"pinnacle", "circa", "bookmaker", "betfair"})
 MEXICAN_BOOKS = frozenset({"caliente", "strendus", "codere", "betway_mx"})
@@ -32,8 +35,6 @@ class BestOffer:
     line: float | None
     edge: float
     ev: float
-    kelly_fraction_pct: float
-    stake_units: float
 
 
 def compute_ev(p: float, odds: float) -> float:
@@ -50,22 +51,6 @@ def implied_probability(odds: float) -> float:
 def edge(p: float, odds: float) -> float:
     """Edge = P_modelo - P_implícita (no lo mismo que EV)."""
     return float(p - implied_probability(odds))
-
-
-def kelly_stake(
-    p: float,
-    odds: float,
-    *,
-    bankroll: float,
-    fraction: float | None = None,
-    cap_pct: float | None = None,
-) -> tuple[float, float]:
-    """Retorna (stake_absoluto, kelly_fraction_pct). Lee defaults de settings."""
-    s = get_settings().betting
-    f = fraction if fraction is not None else s.kelly_fraction
-    cap = cap_pct if cap_pct is not None else s.kelly_max_stake_pct
-    k_pct = _kelly_fraction(p, odds, fraction=f, cap=cap)
-    return k_pct * bankroll, k_pct
 
 
 def find_best_price(
@@ -93,28 +78,44 @@ def evaluate_offer(
     *,
     p_fair: float,
     quote: BookmakerQuote,
-    bankroll: float,
+    sport: str | None = None,
+    stage: str | None = None,
+    market: str | None = None,
+    league_id: int | None = None,
 ) -> BestOffer | None:
-    """Convierte cuota + p en `BestOffer` si pasa threshold EV y rango odds."""
+    """Convierte cuota + p en `BestOffer` si pasa threshold EV y rango odds.
+
+    Mejora 1: `sport`/`stage`/`market`/`league_id` activan threshold adaptativo
+    (`config/ev_thresholds.yaml`). Sin argumentos usa el threshold global.
+    """
     s = get_settings().betting
     odds = quote.odds
     if odds < s.min_odds or odds > s.max_odds:
         return None
     ev = compute_ev(p_fair, odds)
-    if ev < s.ev_threshold:
-        return None
-    edge_val = edge(p_fair, odds)
-    stake_abs, kelly_pct = kelly_stake(p_fair, odds, bankroll=bankroll)
-    if kelly_pct <= 0:
+
+    # Threshold adaptativo con jerarquía: league > market > stage > sport.
+    if sport is not None:
+        from apuestas.betting.ev_thresholds import ev_threshold_for
+
+        thr = ev_threshold_for(
+            sport=sport,
+            stage=stage,
+            market=market,
+            league_id=league_id,
+            fallback=float(s.ev_threshold),
+        )
+    else:
+        thr = float(s.ev_threshold)
+
+    if ev < thr:
         return None
     return BestOffer(
         bookmaker=quote.bookmaker,
         odds=odds,
         line=quote.line,
-        edge=edge_val,
+        edge=edge(p_fair, odds),
         ev=ev,
-        kelly_fraction_pct=kelly_pct,
-        stake_units=stake_abs,
     )
 
 
@@ -122,15 +123,44 @@ def line_shopping(
     quotes: list[BookmakerQuote],
     *,
     p_fair: float,
-    bankroll: float,
     exclude_sharp: bool = True,
     allowed_books: frozenset[str] | None = None,
+    sport: str | None = None,
+    stage: str | None = None,
+    league: str | None = None,
+    market: str | None = None,
+    league_id: int | None = None,
 ) -> BestOffer | None:
-    """Encuentra mejor precio Y evalúa EV + Kelly en una pasada."""
+    """Encuentra mejor precio Y evalúa EV en una pasada.
+
+    Sprint 11 Fase D — si `league` se provee, pondera quotes por
+    `book_power_ratings` cache: libros soft con edge bps histórico > 0
+    reciben boost marginal para preferirlos sobre libros calibrados.
+    """
+    import os as _os
+
+    if league is not None and _os.environ.get("APUESTAS_USE_BOOK_POWER", "true").lower() == "true":
+        try:
+            from apuestas.betting.book_power_ratings import get_cached_edge
+
+            # Re-ordena quotes por edge histórico descendente
+            quotes = sorted(
+                quotes,
+                key=lambda q: -get_cached_edge(q.bookmaker, league),
+            )
+        except Exception:
+            pass
     best = find_best_price(quotes, exclude_sharp=exclude_sharp, allowed_books=allowed_books)
     if best is None:
         return None
-    return evaluate_offer(p_fair=p_fair, quote=best, bankroll=bankroll)
+    return evaluate_offer(
+        p_fair=p_fair,
+        quote=best,
+        sport=sport,
+        stage=stage,
+        market=market,
+        league_id=league_id,
+    )
 
 
 def blend_probabilities(
@@ -149,14 +179,3 @@ def blend_probabilities(
 
 
 Direction = Literal["home", "away", "over", "under", "draw"]
-
-
-def compute_clv(
-    *,
-    odds_placed: float,
-    closing_odds: float,
-) -> float:
-    """Closing Line Value. >0 = mejor precio que el cierre (sharp territory)."""
-    if closing_odds <= 1.0:
-        return 0.0
-    return float(odds_placed / closing_odds - 1.0)

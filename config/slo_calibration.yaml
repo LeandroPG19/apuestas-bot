@@ -1,0 +1,58 @@
+# SLO multi-burn-rate para calibración del modelo (Sprint 7b).
+# Plan §9.4 / Google SRE Handbook. Budget 28d, burn rates críticos cortan
+# promoción y disparan alerta Telegram; warnings sólo alertan.
+#
+# brier_objective: umbral hard que el modelo NO debe cruzar (30d rolling).
+# brier_budget_28d: tolerancia adicional antes de activar la alerta.
+# Burn rate = (budget consumido / budget total) × (28d / window).
+
+defaults:
+  brier_objective: 0.24
+  brier_budget_28d: 0.05
+  ece_objective: 0.05
+  ece_budget_28d: 0.02
+  alerts:
+    critical:
+      burn_rate: 14.4
+      window_hours: 1
+      budget_consumed_pct: 2.0
+    warning:
+      burn_rate: 6.0
+      window_hours: 6
+      budget_consumed_pct: 5.0
+
+nba:
+  brier_objective: 0.22
+  brier_budget_28d: 0.04
+  ece_objective: 0.05
+  ece_budget_28d: 0.02
+  alerts:
+    critical: { burn_rate: 14.4, window_hours: 1, budget_consumed_pct: 2.0 }
+    warning: { burn_rate: 6.0, window_hours: 6, budget_consumed_pct: 5.0 }
+
+nfl:
+  brier_objective: 0.23
+  brier_budget_28d: 0.05
+  ece_objective: 0.06
+  ece_budget_28d: 0.02
+  alerts:
+    critical: { burn_rate: 14.4, window_hours: 1, budget_consumed_pct: 2.0 }
+    warning: { burn_rate: 6.0, window_hours: 6, budget_consumed_pct: 5.0 }
+
+mlb:
+  brier_objective: 0.24
+  brier_budget_28d: 0.05
+  ece_objective: 0.06
+  ece_budget_28d: 0.02
+  alerts:
+    critical: { burn_rate: 14.4, window_hours: 1, budget_consumed_pct: 2.0 }
+    warning: { burn_rate: 6.0, window_hours: 6, budget_consumed_pct: 5.0 }
+
+soccer:
+  brier_objective: 0.23
+  brier_budget_28d: 0.05
+  ece_objective: 0.05
+  ece_budget_28d: 0.02
+  alerts:
+    critical: { burn_rate: 14.4, window_hours: 1, budget_consumed_pct: 2.0 }
+    warning: { burn_rate: 6.0, window_hours: 6, budget_consumed_pct: 5.0 }

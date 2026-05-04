@@ -48,8 +48,26 @@ async def _cache_api_credits(source: str, remaining: int) -> None:
         pass
 
 
+# Cache in-memory local (fallback cuando Valkey no responde). Sobrevive durante
+# el proceso; al reiniciar la TUI/worker se reinicia — al próximo arranque volverá
+# a intentar el primer request y si sigue agotada se auto-marca en <1s.
+import time as _time
+
+_local_quota: dict[str, float] = {}
+
+
 async def _is_quota_exhausted(source: str) -> bool:
-    """True si la fuente está en cooldown por quota agotada."""
+    """True si la fuente está en cooldown por quota agotada.
+
+    Dos niveles: cache local (in-proc, instantáneo) + Valkey (persistente entre
+    procesos). Si ambos fallan, retorna False (no bloquea ingesta).
+    """
+    # Nivel 1: cache local (evita spam dentro de una sesión aunque Valkey esté down)
+    exp = _local_quota.get(source)
+    if exp is not None and _time.time() < exp:
+        return True
+
+    # Nivel 2: Valkey (persistencia cross-proceso)
     url = os.environ.get("VALKEY_URL", "") or "redis://localhost:6379/0"
     try:
         import redis.asyncio as aioredis
@@ -57,13 +75,18 @@ async def _is_quota_exhausted(source: str) -> bool:
         r = aioredis.from_url(url, socket_timeout=1, decode_responses=True)
         val = await r.get(f"quota_exhausted:{source}")
         await r.aclose()
-        return val == "1"
+        is_ex = val == "1"
+        if is_ex:
+            _local_quota[source] = _time.time() + 86400
+        return is_ex
     except Exception:
         return False
 
 
 async def _mark_quota_exhausted(source: str, ttl_seconds: int = 86400) -> None:
-    """Marca fuente como agotada por TTL (default 24h)."""
+    """Marca fuente como agotada en cache local + Valkey (best-effort)."""
+    _local_quota[source] = _time.time() + ttl_seconds
+
     url = os.environ.get("VALKEY_URL", "") or "redis://localhost:6379/0"
     try:
         import redis.asyncio as aioredis
@@ -250,6 +273,13 @@ class BaseAPIClient(ABC):
 
         return resp
 
+    def _on_response(self, response: httpx.Response) -> None:  # noqa: B027 - hook con default no-op para subclases
+        """Hook opcional para subclases: parsing custom de headers/response.
+
+        Se invoca tras cada respuesta exitosa. Default no-op. Override en
+        subclases que quieran procesar rate-limit info de headers propietarios.
+        """
+
     async def get(
         self,
         path: str,
@@ -266,6 +296,7 @@ class BaseAPIClient(ABC):
                 await _cache_api_credits(self.source_name, int(remaining))
             except Exception:
                 pass
+        self._on_response(resp)
         return resp.json()
 
     async def post(
@@ -276,4 +307,5 @@ class BaseAPIClient(ABC):
         correlation_id: str | None = None,
     ) -> Any:
         resp = await self._request("POST", path, json_body=json_body, correlation_id=correlation_id)
+        self._on_response(resp)
         return resp.json()

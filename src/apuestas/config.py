@@ -29,7 +29,9 @@ class LogLevel(StrEnum):
 
 
 class DatabaseSettings(BaseSettings):
-    model_config = SettingsConfigDict(env_prefix="", extra="ignore")
+    model_config = SettingsConfigDict(
+        env_prefix="", extra="ignore", env_file=".env", env_file_encoding="utf-8"
+    )
 
     postgres_user: str = Field(default="apuestas")
     postgres_password: SecretStr
@@ -38,10 +40,16 @@ class DatabaseSettings(BaseSettings):
     postgres_port: int = Field(default=5432)
     postgres_host_port: int = Field(default=5433)
 
-    pool_size: int = Field(default=10)
-    max_overflow: int = Field(default=20)
+    # Pool tuning: el bot tiene 6 timers + bot Telegram + Prefect server +
+    # api/main.py granian (4 workers). En picos ejecutan paralelos hasta
+    # ~30 sesiones. pool_size=20 + overflow=40 = capacity 60 (vs 30 anterior)
+    # cubre con margen sin saturar Postgres (max_connections=100 default).
+    pool_size: int = Field(default=20)
+    max_overflow: int = Field(default=40)
     pool_pre_ping: bool = Field(default=True)
-    pool_recycle_seconds: int = Field(default=1800)
+    # Recycle más frecuente (15 min vs 30) para evitar conexiones stale tras
+    # reinicios silenciosos de TimescaleDB durante compresión nocturna.
+    pool_recycle_seconds: int = Field(default=900)
 
     @computed_field  # type: ignore[prop-decorator]
     @property
@@ -64,7 +72,9 @@ class DatabaseSettings(BaseSettings):
 
 
 class ValkeySettings(BaseSettings):
-    model_config = SettingsConfigDict(env_prefix="", extra="ignore")
+    model_config = SettingsConfigDict(
+        env_prefix="", extra="ignore", env_file=".env", env_file_encoding="utf-8"
+    )
 
     valkey_host: str = Field(default="valkey")
     valkey_port: int = Field(default=6379)
@@ -81,7 +91,9 @@ class ValkeySettings(BaseSettings):
 
 
 class LLMSettings(BaseSettings):
-    model_config = SettingsConfigDict(env_prefix="", extra="ignore")
+    model_config = SettingsConfigDict(
+        env_prefix="", extra="ignore", env_file=".env", env_file_encoding="utf-8"
+    )
 
     # Backend selector: "llama_local" (Qwen GGUF GPU) | "deepseek" (API remota).
     # Si tienes cuenta DeepSeek, pon "deepseek" y rellena DEEPSEEK_API_KEY.
@@ -100,7 +112,14 @@ class LLMSettings(BaseSettings):
     # "deepseek-chat" → V3.2 (general); "deepseek-reasoner" → R1 para razonamiento.
     deepseek_model: str = Field(default="deepseek-chat")
     deepseek_temperature: float = Field(default=0.2)
-    deepseek_max_tokens: int = Field(default=1024)
+    # Cap defensivo. Output medido en producción (24h, 10k+ calls):
+    #   nlp/ner    : avg 78 tok / max 268 tok  → cap 384 con margen 40%
+    #   pre_match  : avg 222 tok / max 560 tok → cap 768 con margen 35%
+    # Antes era 1024 (4-13× sobredimensionado). El cap previene runaway en
+    # outliers (DeepSeek ya factura output real, pero un max alto permite que
+    # el modelo divague en JSON inválido y dispare el retry corrector).
+    # Per-task overrides via structured_chat(max_tokens=...).
+    deepseek_max_tokens: int = Field(default=512)
 
     tei_url: str = Field(default="http://embed:80")
     embed_model: str = Field(default="BAAI/bge-m3")
@@ -108,7 +127,9 @@ class LLMSettings(BaseSettings):
 
 
 class MCPSettings(BaseSettings):
-    model_config = SettingsConfigDict(env_prefix="", extra="ignore")
+    model_config = SettingsConfigDict(
+        env_prefix="", extra="ignore", env_file=".env", env_file_encoding="utf-8"
+    )
 
     apuestas_use_mcp: bool = Field(default=True)
     cuba_memorys_stdio_cmd: str = Field(default="")
@@ -116,7 +137,9 @@ class MCPSettings(BaseSettings):
 
 
 class APISettings(BaseSettings):
-    model_config = SettingsConfigDict(env_prefix="", extra="ignore")
+    model_config = SettingsConfigDict(
+        env_prefix="", extra="ignore", env_file=".env", env_file_encoding="utf-8"
+    )
 
     api_football_key: SecretStr | None = None
     the_odds_api_key: SecretStr | None = None
@@ -132,10 +155,19 @@ class APISettings(BaseSettings):
 
     telegram_bot_token: SecretStr | None = None
     telegram_chat_id: str | None = None
+    # Canal/grupo de difusión (opcional).
+    # Acepta:
+    #   - Canal público:   "@nombre_canal"     (bot debe ser admin)
+    #   - Canal privado:   "-1001234567890"    (bot debe ser admin)
+    #   - Grupo/supergrupo: "-1001234567890"   (bot miembro basta, admin mejor)
+    # Si está configurado, cada pick se replica al destino (sin botones inline).
+    telegram_channel_id: str | None = None
 
 
 class BettingSettings(BaseSettings):
-    model_config = SettingsConfigDict(env_prefix="", extra="ignore")
+    model_config = SettingsConfigDict(
+        env_prefix="", extra="ignore", env_file=".env", env_file_encoding="utf-8"
+    )
 
     default_bankroll_units: float = Field(default=200.0)
     kelly_fraction: Annotated[float, Field(ge=0.0, le=1.0)] = Field(default=0.25)
@@ -156,7 +188,9 @@ class BettingSettings(BaseSettings):
 
 
 class ObservabilitySettings(BaseSettings):
-    model_config = SettingsConfigDict(env_prefix="", extra="ignore")
+    model_config = SettingsConfigDict(
+        env_prefix="", extra="ignore", env_file=".env", env_file_encoding="utf-8"
+    )
 
     otel_exporter_otlp_endpoint: str = Field(default="http://signoz-otel:4317")
     otel_service_name: str = Field(default="apuestas")

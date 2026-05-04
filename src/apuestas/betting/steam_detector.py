@@ -93,13 +93,18 @@ async def capture_line_snapshot(
 
 async def detect_steam_moves(
     *,
-    window_minutes: int = 15,
-    min_books: int = 3,
+    window_minutes: int = 360,
+    min_books: int = 2,
     min_pct: float = 0.03,
 ) -> list[SteamCandidate]:
-    """Escanea snapshots recientes; detecta steam en progreso.
+    """Escanea movimientos recientes en odds_history; detecta steam en progreso.
 
-    Retorna lista de steams encontrados y los persiste en steam_moves.
+    Estrategia: para cada (match, market, outcome, bookmaker), compara la odds
+    más reciente vs la más antigua dentro de la ventana. Si ≥3 books movieron
+    en la misma dirección con magnitud ≥3%, es steam.
+
+    Antes leía de `line_movement_snapshots` (que estaba vacía — nunca se pobló).
+    Ahora lee directo de `odds_history` (1.8M rows reales).
     """
     now = datetime.now(tz=UTC)
     since = now - timedelta(minutes=window_minutes)
@@ -108,24 +113,34 @@ async def detect_steam_moves(
         r = await s.execute(
             text(
                 """
-                WITH windowed AS (
-                    SELECT match_id, market, outcome, bookmaker,
-                           FIRST_VALUE(odds) OVER w AS first_odds,
-                           LAST_VALUE(odds) OVER w AS last_odds,
-                           MIN(ts) OVER w AS first_ts
-                    FROM line_movement_snapshots
+                WITH bookended AS (
+                    SELECT match_id, market, outcome, bookmaker, odds, ts,
+                           ROW_NUMBER() OVER (
+                               PARTITION BY match_id, market, outcome, bookmaker
+                               ORDER BY ts ASC
+                           ) AS rn_first,
+                           ROW_NUMBER() OVER (
+                               PARTITION BY match_id, market, outcome, bookmaker
+                               ORDER BY ts DESC
+                           ) AS rn_last
+                    FROM odds_history
                     WHERE ts >= :since
-                    WINDOW w AS (
-                        PARTITION BY match_id, market, outcome, bookmaker
-                        ORDER BY ts
-                        ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING
-                    )
+                ),
+                pairs AS (
+                    SELECT
+                        f.match_id, f.market, f.outcome, f.bookmaker,
+                        f.odds AS first_odds, f.ts AS first_ts,
+                        l.odds AS last_odds
+                    FROM bookended f
+                    JOIN bookended l ON l.match_id = f.match_id
+                        AND l.market = f.market AND l.outcome = f.outcome
+                        AND l.bookmaker = f.bookmaker
+                        AND l.rn_last = 1
+                    WHERE f.rn_first = 1 AND f.odds != l.odds
                 )
-                SELECT DISTINCT match_id, market, outcome, bookmaker,
+                SELECT match_id, market, outcome, bookmaker,
                        first_odds, last_odds, first_ts
-                FROM windowed
-                WHERE first_odds IS NOT NULL AND last_odds IS NOT NULL
-                  AND first_odds != last_odds
+                FROM pairs
                 """
             ),
             {"since": since},
@@ -160,7 +175,14 @@ async def detect_steam_moves(
             continue
 
         direction = "up" if direction_books is up else "down"
-        magnitude = sum(abs(m["delta_pct"]) for m in direction_books) / len(direction_books)
+        # Clamp a 9.9999 — schema steam_moves.magnitude_pct es numeric(5,4).
+        # Sin clamp, casos extremos (odds 1.01 → 5.0 = delta_pct=4.0; promedio
+        # ponderado podría disparar a 4.5+) sobrepasan el rango y causan
+        # NumericValueOutOfRangeError. 9.99 = 999% es magnitud absurda en odds.
+        magnitude = min(
+            9.9999,
+            sum(abs(m["delta_pct"]) for m in direction_books) / len(direction_books),
+        )
 
         # ¿Pinnacle lideró? (se movió antes que los demás)
         direction_books.sort(key=lambda m: m["first_ts"])

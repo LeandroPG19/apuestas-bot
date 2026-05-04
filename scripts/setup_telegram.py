@@ -147,7 +147,7 @@ async def main() -> int:
     print("  1. Abre Telegram → busca @BotFather (el con checkmark azul)")
     print("  2. Envíale:   /newbot")
     print("  3. Nombre: ej. 'Mi Apuestas Bot'")
-    print("  4. Username: terminar en 'bot' (ej. leandro_apuestas_bot)")
+    print("  4. Username: terminar en 'bot' (ej. mi_apuestas_bot)")
     print("  5. BotFather te da un token tipo:")
     print("        123456789:ABCdefGHIjklMNO...")
     print()
@@ -177,9 +177,19 @@ async def main() -> int:
         {
             "TELEGRAM_BOT_TOKEN": token,
             "TELEGRAM_CHAT_ID": chat_id,
+            # Gap #2 + #13: VPN ya activa, DK on por default (menos agresivo)
+            "APUESTAS_US_VPN_ACTIVE": "true",
+            "APUESTAS_ENABLE_DK": "true",
+            "APUESTAS_ENABLE_FANDUEL": "false",
+            "APUESTAS_ENABLE_BETMGM": "false",
+            # Gap #5 props MVP — off por default hasta tener histórico
+            "APUESTAS_ENABLE_PROPS": "false",
         }
     )
-    print("✅ Variables guardadas: TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID")
+    print(
+        "✅ Variables guardadas: TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, "
+        "APUESTAS_US_VPN_ACTIVE=true, APUESTAS_ENABLE_DK=true"
+    )
 
     print("\n📨 Enviando mensaje de confirmación...")
     ok = await _send_test(token, chat_id)

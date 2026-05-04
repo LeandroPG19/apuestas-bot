@@ -501,3 +501,124 @@ def fit_distribution(samples: np.ndarray, distribution: str) -> PropDistribution
         msg = f"Distribución no soportada: {distribution}. Usa Monte Carlo directo."
         raise ValueError(msg)
     return fitter(samples)
+
+
+# ═══════════════════════ Fase 3.1 — Dixon-Coles full matrix ═════════════
+
+
+def dixon_coles_tau(x: int, y: int, lam: float, mu: float, rho: float) -> float:
+    """Factor de corrección Dixon-Coles para resultados bajos (0-0, 1-1, 0-1, 1-0).
+
+    El modelo Poisson simple sobreestima empates (especialmente 0-0, 1-1) y
+    subestima diferenciales bajos (0-1, 1-0). `tau` corrige.
+    """
+    if x == 0 and y == 0:
+        return 1.0 - lam * mu * rho
+    if x == 0 and y == 1:
+        return 1.0 + lam * rho
+    if x == 1 and y == 0:
+        return 1.0 + mu * rho
+    if x == 1 and y == 1:
+        return 1.0 - rho
+    return 1.0
+
+
+def dixon_coles_simulate(
+    home_strength: float,
+    away_strength: float,
+    *,
+    max_goals: int = 10,
+    rho: float = -0.1,
+) -> np.ndarray:
+    """Genera matriz (max_goals x max_goals) de P(home_goals=i, away_goals=j).
+
+    `home_strength`, `away_strength` = λ, μ (expected goals para home y away).
+    `rho` = parámetro DC (correlación entre marcadores bajos, típico -0.1).
+
+    Retorna matriz normalizada (suma=1) lista para derivar cualquier prop:
+      - BTTS: sum(M[i][j] for i≥1, j≥1)
+      - Over 2.5: sum(M[i][j] for i+j≥3)
+      - Correct score X-Y: M[X][Y]
+      - Home win: sum(M[i][j] for i>j)
+      - Draw: sum(M[i][i])
+    """
+    from scipy.stats import poisson  # type: ignore[import-untyped]
+
+    matrix = np.zeros((max_goals, max_goals), dtype=np.float64)
+    for i in range(max_goals):
+        for j in range(max_goals):
+            p_home = poisson.pmf(i, home_strength)
+            p_away = poisson.pmf(j, away_strength)
+            tau = dixon_coles_tau(i, j, home_strength, away_strength, rho)
+            matrix[i, j] = p_home * p_away * tau
+
+    total = matrix.sum()
+    if total > 0:
+        matrix /= total
+    return matrix
+
+
+def dc_prob_btts(matrix: np.ndarray) -> float:
+    """P(ambos equipos anotan) = P(home≥1 AND away≥1)."""
+    return float(matrix[1:, 1:].sum())
+
+
+def dc_prob_over(matrix: np.ndarray, threshold: float) -> float:
+    """P(total goals > threshold). Útil para Over X.5."""
+    total = 0.0
+    max_goals = matrix.shape[0]
+    for i in range(max_goals):
+        for j in range(max_goals):
+            if i + j > threshold:
+                total += matrix[i, j]
+    return float(total)
+
+
+def dc_prob_correct_score(matrix: np.ndarray, home_goals: int, away_goals: int) -> float:
+    """P(score exacto)."""
+    if 0 <= home_goals < matrix.shape[0] and 0 <= away_goals < matrix.shape[1]:
+        return float(matrix[home_goals, away_goals])
+    return 0.0
+
+
+def dc_prob_home_win(matrix: np.ndarray) -> float:
+    max_goals = matrix.shape[0]
+    return float(sum(matrix[i, j] for i in range(max_goals) for j in range(max_goals) if i > j))
+
+
+def dc_prob_draw(matrix: np.ndarray) -> float:
+    return float(np.trace(matrix))
+
+
+def dc_prob_away_win(matrix: np.ndarray) -> float:
+    max_goals = matrix.shape[0]
+    return float(sum(matrix[i, j] for i in range(max_goals) for j in range(max_goals) if j > i))
+
+
+def dc_prob_anytime_scorer(
+    matrix: np.ndarray,
+    player_team: str,  # "home" | "away"
+    player_share_of_team_goals: float,  # 0-1
+) -> float:
+    """P(player anota al menos 1 gol).
+
+    Aproximación: P(team marca al menos 1 gol) × share del jugador.
+    Más preciso sería integrar player-Poisson individual.
+    """
+    if player_team == "home":
+        p_team_scores = 1.0 - float(matrix[0, :].sum())
+    else:
+        p_team_scores = 1.0 - float(matrix[:, 0].sum())
+    return p_team_scores * player_share_of_team_goals
+
+
+def dc_prob_double_chance(matrix: np.ndarray, variant: str) -> float:
+    """variant: '1X' (home or draw) | 'X2' (draw or away) | '12' (not draw)."""
+    if variant == "1X":
+        return dc_prob_home_win(matrix) + dc_prob_draw(matrix)
+    if variant == "X2":
+        return dc_prob_draw(matrix) + dc_prob_away_win(matrix)
+    if variant == "12":
+        return dc_prob_home_win(matrix) + dc_prob_away_win(matrix)
+    msg = f"variant debe ser '1X', 'X2' o '12', got {variant!r}"
+    raise ValueError(msg)

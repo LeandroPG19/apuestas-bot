@@ -26,8 +26,15 @@ import os
 from pathlib import Path
 from typing import Any
 
-import hishel
 import httpx
+
+try:
+    import hishel  # type: ignore[import-untyped]
+
+    _HISHEL_AVAILABLE = True
+except ImportError:  # pragma: no cover — dep opcional
+    hishel = None  # type: ignore[assignment]
+    _HISHEL_AVAILABLE = False
 
 from apuestas.obs.logging import get_logger
 
@@ -73,8 +80,11 @@ def make_cached_async_client(
     """Construye un httpx.AsyncClient con cache SQLite persistente.
 
     El cache es **compartido entre procesos** (útil si la TUI y un flow
-    Prefect corren en paralelo).
+    Prefect corren en paralelo). Si `hishel` no está instalado, retorna un
+    httpx.AsyncClient normal (sin cache) — degrada sin romper.
     """
+    if not _HISHEL_AVAILABLE:
+        return httpx.AsyncClient(timeout=timeout, headers=headers or {})
     storage = hishel.AsyncSQLiteStorage(
         connection=None,  # hishel lo gestiona
         ttl=_DEFAULT_TTL,

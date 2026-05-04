@@ -1,0 +1,54 @@
+# Everygame.com (antes Intertops) — offshore Malta+Curaçao, desde 1996
+book_slug: everygame
+region: OFFSHORE
+base_url: https://www.everygame.eu/sportsbook
+cloudflare_bypass: true
+rate_limit_seconds: 1.5
+
+urls:
+  nba: "/basketball/nba"
+  mlb: "/baseball/mlb"
+  nfl: "/football-usa/nfl"
+  nhl: "/hockey/nhl"
+  liga_mx: "/soccer/mexico-primera-division"
+  epl: "/soccer/england-premier-league"
+  champions: "/soccer/champions-league"
+  tennis: "/tennis"
+  boxing: "/boxing"
+  mma: "/mma"
+
+sport_to_code:
+  nba: nba
+  mlb: mlb
+  nfl: nfl
+  nhl: nhl
+  liga_mx: soccer
+  epl: soccer
+  champions: soccer
+  tennis: tennis
+  boxing: boxing
+  mma: mma
+
+selectors:
+  event_card: "div.event, article.match-event"
+  team_home: "span.home, .team-home"
+  team_away: "span.away, .team-away"
+  start_time: "time[datetime], .event-datetime"
+  market_section: "section.markets, div.market-list"
+  market_name: ".market-title"
+  outcome_button: "button.outcome-button, .odds-selector"
+  outcome_label: ".outcome-name"
+  outcome_odds: ".odds-display"
+  outcome_line: ".handicap-value"
+
+market_aliases:
+  "Money Line": h2h
+  "1X2": h2h
+  "Match Winner": h2h
+  "Point Spread": spreads
+  "Handicap": spreads
+  "Asian Handicap": asian_handicap
+  "Total Points": totals
+  "Total Goals": totals
+  "Total": totals
+  "Both Teams to Score": btts

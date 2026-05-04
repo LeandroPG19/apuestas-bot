@@ -161,8 +161,26 @@ async def run_drift_for_model(*, model_name: str) -> dict[str, Any]:
     }
 
 
+_SPORT_FROM_MODEL = {
+    "nba_moneyline": "nba",
+    "nba_ats": "nba",
+    "nba_total": "nba",
+    "mlb_moneyline": "mlb",
+    "nfl_ats": "nfl",
+    "nfl_moneyline": "nfl",
+    "nhl_moneyline": "nhl",
+    "tennis_moneyline": "tennis",
+    "soccer_liga_mx": "soccer",
+}
+
+
 @task
-async def alert_if_retrain_needed(model_name: str, drift_result: dict[str, Any]) -> None:
+async def alert_if_retrain_needed(
+    model_name: str,
+    drift_result: dict[str, Any],
+    *,
+    auto_retrain: bool = True,
+) -> None:
     if not drift_result.get("needs_retrain"):
         return
     await mcp_memory.alarma(
@@ -174,6 +192,145 @@ async def alert_if_retrain_needed(model_name: str, drift_result: dict[str, Any])
         model=model_name,
         reasons=drift_result.get("reasons"),
     )
+    if not auto_retrain:
+        return
+    sport_code = _SPORT_FROM_MODEL.get(model_name)
+    if not sport_code:
+        logger.info("drift_monitor.auto_retrain_skip_unknown_sport", model=model_name)
+        return
+    try:
+        from apuestas.flows.retrain_weekly import retrain_sport
+
+        trigger_fn = getattr(retrain_sport, "fn", retrain_sport)
+        retrain_res = await trigger_fn(sport_code)
+        logger.info(
+            "drift_monitor.auto_retrain_triggered",
+            model=model_name,
+            sport=sport_code,
+            result=str(retrain_res)[:200],
+        )
+    except Exception as exc:
+        logger.exception(
+            "drift_monitor.auto_retrain_fail",
+            model=model_name,
+            error=str(exc),
+        )
+
+
+async def auto_degradate_drifted_model(
+    model_name: str, *, brier_inflation_threshold: float = 1.10
+) -> dict[str, Any]:
+    """F6 hardening — degrada modelo production a shadow si Brier rolling 30d
+    excede 1.10× el Brier de training (modelo drifteado a producción ruidosa).
+
+    Defensivo: aunque el drift_monitor dispare retrain (que toma horas), F6
+    saca el modelo malo de production INMEDIATAMENTE para que el detector
+    no emita más picks basados en él.
+
+    Returns: dict con `degraded`, `brier_30d`, `brier_train`, `inflation`.
+    Idempotente: si el modelo ya está en shadow, no-op.
+    """
+    async with session_scope() as session:
+        # 1. Brier de training (de model_registry_meta.performance_30d)
+        meta = (
+            await session.execute(
+                text(
+                    """
+                    SELECT mlflow_run_id, sport_code, performance_30d, stage
+                    FROM model_registry_meta
+                    WHERE model_name = :n AND stage = 'production'
+                    ORDER BY promoted_at DESC NULLS LAST LIMIT 1
+                    """
+                ),
+                {"n": model_name},
+            )
+        ).first()
+        if meta is None:
+            return {"degraded": False, "reason": "no_production_model"}
+        perf = dict(meta.performance_30d or {})
+        brier_train = perf.get("holdout_brier") or perf.get("brier")
+        if brier_train is None:
+            return {"degraded": False, "reason": "no_brier_train"}
+
+        # 2. Brier rolling 30d desde picks settled
+        rolling = (
+            await session.execute(
+                text(
+                    """
+                    SELECT AVG((p.probability - CASE WHEN pa.outcome_result='won' THEN 1.0
+                                                     WHEN pa.outcome_result='lost' THEN 0.0
+                                                     ELSE NULL END) ^ 2) AS brier_30d,
+                           COUNT(*) AS n
+                    FROM pick_alerts pa
+                    JOIN predictions p ON p.id = pa.prediction_id
+                    WHERE p.model_name = :n
+                      AND pa.outcome_result IN ('won','lost')
+                      AND pa.placed_at > NOW() - INTERVAL '30 days'
+                    """
+                ),
+                {"n": model_name},
+            )
+        ).first()
+        if rolling is None or rolling.brier_30d is None or (rolling.n or 0) < 20:
+            # <20 picks settled → muestra muy chica para juzgar drift
+            return {
+                "degraded": False,
+                "reason": "insufficient_settled_picks",
+                "n_settled": int(rolling.n or 0) if rolling else 0,
+            }
+        brier_30d = float(rolling.brier_30d)
+        brier_train_f = float(brier_train)
+        inflation = brier_30d / brier_train_f if brier_train_f > 0 else 0.0
+
+        if inflation < brier_inflation_threshold:
+            return {
+                "degraded": False,
+                "reason": "within_tolerance",
+                "brier_30d": round(brier_30d, 4),
+                "brier_train": round(brier_train_f, 4),
+                "inflation": round(inflation, 3),
+                "n_settled": int(rolling.n),
+            }
+
+        # 3. Degradar: production → shadow
+        await session.execute(
+            text(
+                """
+                UPDATE model_registry_meta
+                SET stage = 'shadow'
+                WHERE model_name = :n AND stage = 'production'
+                """
+            ),
+            {"n": model_name},
+        )
+        await session.commit()
+        logger.warning(
+            "drift_monitor.auto_degradated",
+            model=model_name,
+            sport=meta.sport_code,
+            brier_30d=round(brier_30d, 4),
+            brier_train=round(brier_train_f, 4),
+            inflation=round(inflation, 3),
+            n_settled=int(rolling.n),
+        )
+        try:
+            await mcp_memory.alarma(
+                trigger=f"auto_degradate_{model_name}",
+                details={
+                    "brier_30d": round(brier_30d, 4),
+                    "brier_train": round(brier_train_f, 4),
+                    "inflation": round(inflation, 3),
+                },
+            )
+        except Exception:
+            pass
+        return {
+            "degraded": True,
+            "brier_30d": round(brier_30d, 4),
+            "brier_train": round(brier_train_f, 4),
+            "inflation": round(inflation, 3),
+            "n_settled": int(rolling.n),
+        }
 
 
 @flow(name="apuestas-drift-monitor", log_prints=True)
@@ -192,15 +349,30 @@ async def drift_monitor_flow() -> dict[str, Any]:
         models = [r[0] for r in result.all()]
 
     reports: dict[str, Any] = {}
+    degradations: list[dict[str, Any]] = []
     for name in models:
         try:
             report = await run_drift_for_model(model_name=name)
             reports[name] = report
             await alert_if_retrain_needed(name, report)
+            # F6 — auto-degradate independiente del retrain.
+            # Aunque retrain tarde horas, el modelo malo NO sigue emitiendo picks.
+            try:
+                deg = await auto_degradate_drifted_model(name)
+                if deg.get("degraded"):
+                    degradations.append({"model": name, **deg})
+            except Exception as exc:
+                logger.exception(
+                    "drift_monitor.auto_degradate_fail", model=name, error=str(exc)[:120]
+                )
         except Exception as exc:
             logger.exception("drift_monitor.model_fail", model=name, error=str(exc))
 
-    return {"models_checked": len(models), "reports": reports}
+    return {
+        "models_checked": len(models),
+        "reports": reports,
+        "auto_degradations": degradations,
+    }
 
 
 if __name__ == "__main__":

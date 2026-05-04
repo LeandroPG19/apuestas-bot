@@ -1,0 +1,51 @@
+# JugaBet.mx — SEGOB MX regulado
+book_slug: jugabet
+region: MX
+segob_license: true
+base_url: https://www.jugabet.mx/apuestas
+cloudflare_bypass: true
+rate_limit_seconds: 2.0
+
+urls:
+  liga_mx: "/futbol/mexico/liga-mx"
+  liga_expansion: "/futbol/mexico/liga-expansion"
+  nba: "/baloncesto/nba"
+  mlb: "/beisbol/mlb"
+  nfl: "/futbol-americano/nfl"
+  champions: "/futbol/champions"
+  tennis: "/tenis"
+  boxing: "/boxeo"
+
+sport_to_code:
+  liga_mx: soccer
+  liga_expansion: soccer
+  nba: nba
+  mlb: mlb
+  nfl: nfl
+  champions: soccer
+  tennis: tennis
+  boxing: boxing
+
+selectors:
+  event_card: "div.event-card, article.match-event"
+  team_home: ".home, .team-home"
+  team_away: ".away, .team-away"
+  start_time: "time[datetime]"
+  market_section: "div.market-block"
+  market_name: "h4.market-title"
+  outcome_button: "button.bet-option"
+  outcome_label: ".outcome-name"
+  outcome_odds: ".odds"
+  outcome_line: ".line"
+
+market_aliases:
+  "1X2": h2h
+  "Ganador": h2h
+  "Ganador del Partido": h2h
+  "Hándicap": spreads
+  "Hándicap Asiático": asian_handicap
+  "Más/Menos": totals
+  "Total": totals
+  "Total de Goles": totals
+  "Ambos Equipos Anotan": btts
+  "Doble Oportunidad": double_chance

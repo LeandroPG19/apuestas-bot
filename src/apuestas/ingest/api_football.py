@@ -366,12 +366,25 @@ def lineups_to_polars(raw: list[dict[str, Any]], fixture_id: int) -> pl.DataFram
 # ═══════════════════════ Flujos orquestados ═════════════════════════════
 
 
+def _api_football_key_available() -> bool:
+    """Fail-soft check. Sin key o placeholder, skip con log info."""
+    settings = get_settings()
+    key_obj = settings.apis.api_football_key
+    if key_obj is None:
+        return False
+    k = key_obj.get_secret_value().strip()
+    return bool(k) and not k.startswith(("your-", "change-", "paste-"))
+
+
 async def ingest_league_fixtures(league_slug: str, season: int) -> pl.DataFrame:
     """Ingesta fixtures + validación. Retorna DF listo para INSERT."""
     league_id = LEAGUE_IDS.get(league_slug)
     if league_id is None:
-        msg = f"Liga desconocida: {league_slug}. Agregar a LEAGUE_IDS."
-        raise ValueError(msg)
+        logger.info("api_football.unknown_league", league=league_slug)
+        return pl.DataFrame()
+    if not _api_football_key_available():
+        logger.info("api_football.disabled", reason="no_valid_key", league=league_slug)
+        return pl.DataFrame()
 
     client = APIFootballClient()
     async with client.session():
@@ -394,8 +407,11 @@ async def ingest_league_fixtures(league_slug: str, season: int) -> pl.DataFrame:
 async def ingest_league_odds(league_slug: str, season: int) -> pl.DataFrame:
     league_id = LEAGUE_IDS.get(league_slug)
     if league_id is None:
-        msg = f"Liga desconocida: {league_slug}"
-        raise ValueError(msg)
+        logger.info("api_football.unknown_league", league=league_slug)
+        return pl.DataFrame()
+    if not _api_football_key_available():
+        logger.info("api_football.disabled", reason="no_valid_key", league=league_slug)
+        return pl.DataFrame()
 
     client = APIFootballClient()
     async with client.session():
@@ -411,8 +427,11 @@ async def ingest_league_odds(league_slug: str, season: int) -> pl.DataFrame:
 async def ingest_injuries(league_slug: str, season: int) -> pl.DataFrame:
     league_id = LEAGUE_IDS.get(league_slug)
     if league_id is None:
-        msg = f"Liga desconocida: {league_slug}"
-        raise ValueError(msg)
+        logger.info("api_football.unknown_league", league=league_slug)
+        return pl.DataFrame()
+    if not _api_football_key_available():
+        logger.info("api_football.disabled", reason="no_valid_key", league=league_slug)
+        return pl.DataFrame()
 
     client = APIFootballClient()
     async with client.session():

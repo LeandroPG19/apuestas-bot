@@ -463,3 +463,94 @@ def soccer_goals_weather_multiplier(bucket: WeatherBucket) -> float:
     # Altitud: favorece home last-30-min goals, afecta visitante
     # Este factor se modela como interaction term, no simple multiplier
     return mult
+
+
+# ═══════════════════════ Fase 3.4 — Weather interaction features ═════════
+
+
+def weather_interaction_features(
+    *,
+    temp_c: float | None,
+    wind_kph: float | None,
+    wind_dir_deg: float | None,
+    humidity_pct: float | None,
+    precip_mm: float | None,
+    altitude_m: float | None,
+    venue_has_roof: bool,
+    sport: str,
+) -> dict[str, float]:
+    """Feature engineering explícito para train_base: interacciones weather × sport × venue.
+
+    LGBM/XGB no descubren interacciones no-lineales con pocas observaciones.
+    Aquí las computamos explícitamente como features pre-computadas.
+
+    Retorna dict listo para merge con el feature vector del train.
+
+    Variables clave:
+      - NFL outdoor: wind × passing game (-)
+      - MLB outdoor + Wrigley: wind blowing out × HR (+)
+      - Soccer: precip × finishing quality (-)
+      - NBA indoor: sin efecto (fill zeros)
+    """
+    features: dict[str, float] = {}
+
+    # Si venue tiene techo, weather no afecta (salvo altitude para NBA/tenis)
+    if venue_has_roof:
+        features["weather_temp_z"] = 0.0
+        features["weather_wind_effect"] = 0.0
+        features["weather_humidity_z"] = 0.0
+        features["weather_precip_effect"] = 0.0
+    else:
+        # Temperature z-score (centered at 20°C)
+        features["weather_temp_z"] = (temp_c - 20.0) / 10.0 if temp_c is not None else 0.0
+
+        # Wind × direction: positivo = wind asiste offense outdoor
+        if wind_kph is not None and wind_dir_deg is not None:
+            # Convert: 0° = Norte, wind blowing SOUTH from NORTH = wind out for south-facing field
+            # Simplificación: magnitude impacto = wind_kph * cos(dir_rad)
+            import math
+
+            wind_effect = wind_kph * math.cos(math.radians(wind_dir_deg))
+            features["weather_wind_effect"] = wind_effect / 30.0  # normalized
+        else:
+            features["weather_wind_effect"] = 0.0
+
+        features["weather_humidity_z"] = (
+            (humidity_pct - 50.0) / 20.0 if humidity_pct is not None else 0.0
+        )
+
+        # Precip: step function (0 = dry, 0.5 = light, 1.0 = heavy)
+        if precip_mm is None or precip_mm < 1.0:
+            features["weather_precip_effect"] = 0.0
+        elif precip_mm < 5.0:
+            features["weather_precip_effect"] = 0.5
+        else:
+            features["weather_precip_effect"] = 1.0
+
+    # Altitud: siempre relevante (affecta stamina+ball flight incluso indoor-like)
+    features["weather_altitude_km"] = (altitude_m or 0.0) / 1000.0
+
+    # Sport × weather interactions
+    sport_lower = sport.lower()
+    features["weather_is_nfl_outdoor"] = 1.0 if sport_lower == "nfl" and not venue_has_roof else 0.0
+    features["weather_is_mlb_outdoor"] = 1.0 if sport_lower == "mlb" and not venue_has_roof else 0.0
+    features["weather_is_soccer_outdoor"] = (
+        1.0 if sport_lower == "soccer" and not venue_has_roof else 0.0
+    )
+
+    # NFL específico: wind_effect × passing_game_weight
+    features["weather_nfl_wind_penalty"] = (
+        features["weather_wind_effect"] * features["weather_is_nfl_outdoor"]
+    )
+
+    # MLB específico: wind_out × HR boost (wind blowing out = cos > 0)
+    features["weather_mlb_wind_hr_boost"] = (
+        max(0.0, features["weather_wind_effect"]) * features["weather_is_mlb_outdoor"]
+    )
+
+    # Soccer: precip × finishing quality (-)
+    features["weather_soccer_rain_penalty"] = (
+        features["weather_precip_effect"] * features["weather_is_soccer_outdoor"]
+    )
+
+    return features

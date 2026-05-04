@@ -1,0 +1,56 @@
+# Umbrales EV adaptativos por deporte + fase (Mejora 1).
+#
+# Sustituye el threshold fijo 0.03 que dejaba pasar picks marginales
+# como #112 Texas-PIT (EV +3.41%, modelo sin features suficientes → lost).
+# Plan: filtrar más agresivo en deportes/fases donde el modelo es débil.
+#
+# El match.stage cubre: regular, playoff, friendly, preseason, postseason.
+# Si sport_stage no está definido, cae al default del sport. Si sport no
+# está definido, cae a defaults.
+
+defaults:
+  ev_threshold: 0.03
+
+# ─── NBA ───────────────────────────────────────────────────────
+nba:
+  ev_threshold: 0.04  # modelo cal decente regular season
+nba_playoff:
+  ev_threshold: 0.08  # playoff = distribución distinta; exigir más edge
+
+# ─── NFL ───────────────────────────────────────────────────────
+nfl:
+  ev_threshold: 0.04
+nfl_playoff:
+  ev_threshold: 0.06
+
+# ─── MLB ───────────────────────────────────────────────────────
+mlb:
+  ev_threshold: 0.05  # inicio temporada con pocas muestras (#112 TEX-PIT)
+mlb_spreads:
+  ev_threshold: 0.10  # +1.5 sobre-emite (8 de 16 lost 22-24 abr) → exigir edge 2x
+mlb_playoff:
+  ev_threshold: 0.07
+
+# ─── Soccer MLS — empates altos (26% histórico) ───────────────
+soccer_league_22:  # MLS
+  ev_threshold: 0.06  # #42/43 empates 4-4 lost; catchall subestima draw
+
+# ─── NHL ───────────────────────────────────────────────────────
+nhl:
+  ev_threshold: 0.04
+nhl_playoff:
+  ev_threshold: 0.06
+
+# ─── Soccer ────────────────────────────────────────────────────
+soccer:
+  ev_threshold: 0.03  # DC/Pinnacle estables todo el año
+soccer_playoff:
+  ev_threshold: 0.05  # eliminación directa → varianza alta
+
+# ─── Otros ─────────────────────────────────────────────────────
+tennis:
+  ev_threshold: 0.04
+boxing:
+  ev_threshold: 0.06  # pocas peleas → incertidumbre alta
+mma:
+  ev_threshold: 0.06

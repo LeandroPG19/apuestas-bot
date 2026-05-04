@@ -119,12 +119,34 @@ async def _has_injuries(team_id: int, *, window_hours: int = 168) -> bool:
 
 
 async def _has_lineup(match_id: int, team_id: int) -> bool:
+    """Check lineup en `lineups` (legacy team-keyed) O `match_lineups` (Sprint 14).
+
+    Schemas:
+      - `lineups`: (match_id, team_id, starter_ids[]) — legacy
+      - `match_lineups`: (match_id PK, home_lineup jsonb, away_lineup jsonb) —
+        Sprint 14 lineup_scratch ingester (no tiene team_id, todo en jsonb).
+
+    Para match_lineups consideramos OK si home_lineup O away_lineup tienen data
+    (no podemos saber si team_id es home o away sin extra query, así que
+    cualquiera de los 2 cuenta como "lineup disponible para este match").
+    """
     async with session_scope() as session:
         result = await session.execute(
             text(
                 """
-                SELECT 1 FROM lineups
-                WHERE match_id = :mid AND team_id = :tid
+                SELECT 1 WHERE EXISTS (
+                    SELECT 1 FROM lineups
+                    WHERE match_id = :mid AND team_id = :tid
+                ) OR EXISTS (
+                    SELECT 1 FROM match_lineups
+                    WHERE match_id = :mid
+                      AND (
+                        (home_lineup IS NOT NULL AND home_lineup::text != '[]'
+                         AND home_lineup::text != 'null')
+                        OR (away_lineup IS NOT NULL AND away_lineup::text != '[]'
+                            AND away_lineup::text != 'null')
+                      )
+                )
                 LIMIT 1
                 """
             ),

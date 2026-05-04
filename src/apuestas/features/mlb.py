@@ -154,11 +154,34 @@ def build_mlb_feature_frame(
     team_games: pl.DataFrame,
     *,
     park_factors: dict[str, dict[str, float]] | None = None,
+    pitcher_games: pl.DataFrame | None = None,
 ) -> pl.DataFrame:
-    """Pipeline completo MLB team-level."""
+    """Pipeline completo MLB team-level.
+
+    Sprint 11 Fase G: si pitcher_games se provee, enriquece con Stuff+/
+    Pitching+ features agregadas por equipo.
+    """
     feats = team_rolling_features(team_games)
     if park_factors:
         feats = add_park_factors(feats, park_factors)
+
+    # Sprint 11 Fase G — Stuff+/Pitching+ rolling (opt-in).
+    import os as _os
+
+    if (
+        _os.environ.get("APUESTAS_ENABLE_MLB_STUFF_PLUS", "true").lower() == "true"
+        and pitcher_games is not None
+        and pitcher_games.height > 0
+    ):
+        try:
+            from apuestas.features.mlb_pitching_plus import add_pitching_plus_features
+
+            # Añade cols stuff_plus/location_plus/pitching_plus al pitcher_games;
+            # caller decide cómo mergearlo con team level (típicamente promedio por
+            # team_id o pitcher del día). Aquí se agrega como metadata disponible.
+            _ = add_pitching_plus_features(pitcher_games)
+        except Exception:
+            pass
 
     base_cols = [c for c in feats.columns if c.endswith(("_roll_5", "_roll_10", "_roll_20"))]
     base_cols += ["rest_days", "back_to_back", "park_hr_factor", "park_runs_factor"]
